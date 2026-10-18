@@ -59,6 +59,29 @@
 }
 
 .hero-shade { background: linear-gradient(90deg, hsl(var(--background) / .97), hsl(var(--background) / .65) 40%, hsl(var(--background) / .08) 75%), linear-gradient(0deg, hsl(var(--background)), transparent 35%); }
+
+/* Cinematic layer */
+.film-grain { position: relative; }
+.film-grain::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .06; z-index: 5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.letterbox::before, .letterbox::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 28px; background: hsl(var(--background)); z-index: 6;
+}
+.letterbox::before { top: 0; } .letterbox::after { bottom: 0; }
+.hud-corner { position: absolute; width: 22px; height: 22px; border-color: hsl(var(--primary) / .7); z-index: 7; }
+.hud-tl { top: 40px; left: 16px; border-top: 1px solid; border-left: 1px solid; }
+.hud-tr { top: 40px; right: 16px; border-top: 1px solid; border-right: 1px solid; }
+.hud-bl { bottom: 40px; left: 16px; border-bottom: 1px solid; border-left: 1px solid; }
+.hud-br { bottom: 40px; right: 16px; border-bottom: 1px solid; border-right: 1px solid; }
+.ember-glow { background: radial-gradient(ellipse 60% 45% at 70% 60%, hsl(var(--primary) / .12), transparent 70%); }
+@keyframes hud-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.hud-blink { animation: hud-blink 1.6s ease-in-out infinite; }
+@keyframes hero-reveal { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.hero-reveal { animation: hero-reveal .9s cubic-bezier(.2,.7,.2,1) both; }
+.hero-reveal-2 { animation: hero-reveal .9s .15s cubic-bezier(.2,.7,.2,1) both; }
+.hero-reveal-3 { animation: hero-reveal .9s .3s cubic-bezier(.2,.7,.2,1) both; }
 .section-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; color: hsl(var(--primary)); letter-spacing: 0; }
 .page-heading { border-bottom: 1px solid hsl(var(--border)); padding: 48px 0 32px; }
 .page-heading h1 { font-size: 40px; font-weight: 700; text-transform: uppercase; }
