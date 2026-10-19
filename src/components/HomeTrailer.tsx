@@ -3,6 +3,7 @@ import { ArrowUpRight, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import trailer from '@/assets/sapience-trailer-web.mp4.asset.json';
+import webTrailer from '@/assets/sapience-trailer.webm.asset.json';
 import poster from '@/assets/sapience-trailer-poster.jpg.asset.json';
 
 export default function HomeTrailer() {
@@ -29,6 +30,7 @@ export default function HomeTrailer() {
         aria-label="Sapience Cup 2026 cinematic trailer"
         onError={() => setFailed(true)}
       >
+        <source src={webTrailer.url} type="video/webm" />
         <source src={trailer.url} type="video/mp4" />
         <a href={trailer.url}>Watch the Sapience Cup 2026 trailer</a>
       </video>
