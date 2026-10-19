@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import battleground from '@/assets/sapience-battleground.jpg';
 import football from '@/assets/sapience-football.jpg';
+import { registrationFee, registrationFeeLabel } from '@/lib/registration-fees';
 
 const roles = ['IGL', 'Fragger', 'Sniper', 'Scout', 'Support'];
 const ranks = ['Conqueror', 'Ace Dominator', 'Ace Master', 'Ace', 'Crown', 'Diamond', 'Platinum'];
@@ -74,6 +75,10 @@ export default function Register() {
       <aside className="min-w-0"><img src={bgmi ? battleground : football} alt={bgmi ? 'BGMI squad battleground' : 'FC Mobile football tournament'} className="aspect-[16/9] lg:aspect-[4/3] object-cover w-full"/><p className="section-label mt-5">{bgmi ? 'Squad battle royale' : '1v1 knockout'}</p><h2 className="text-2xl font-bold mt-2">{bgmi ? 'BGMI' : 'EA SPORTS FC™ Mobile'}</h2><dl className="mt-6 text-sm space-y-4"><div className="flex justify-between border-b border-border pb-4"><dt className="text-muted-foreground">Format</dt><dd>{bgmi ? '4 + 1 substitute' : 'H2H / VSA'}</dd></div><div className="flex justify-between border-b border-border pb-4"><dt className="text-muted-foreground">Platform</dt><dd>Mobile only</dd></div><div className="flex justify-between border-b border-border pb-4"><dt className="text-muted-foreground">Dates</dt><dd>To be announced</dd></div></dl><Button asChild variant="link" className="px-0 mt-3"><Link to="/rules">Official rulebook<ArrowRight className="w-4 h-4"/></Link></Button></aside>
       <div className="min-w-0">
         <Tabs value={game} onValueChange={value => { setGame(value); setError(''); setVerified(null); }}><TabsList className="w-full sm:w-auto"><TabsTrigger value="bgmi"><Users className="w-4 h-4 mr-2"/>BGMI</TabsTrigger><TabsTrigger value="fc-mobile"><UserRound className="w-4 h-4 mr-2"/>FC Mobile</TabsTrigger></TabsList></Tabs>
+        <div className="py-5 border-b border-border flex flex-wrap justify-between items-center gap-2">
+          <p className="text-sm text-muted-foreground">Registration charge</p>
+          <div className="sm:text-right"><p className="font-display text-lg font-bold text-primary">{registrationFeeLabel(bgmi ? 'bgmi' : 'fc-mobile')}</p>{bgmi && <p className="text-xs text-muted-foreground mt-1">₹{registrationFee('bgmi', 5).toLocaleString('en-IN')} for a full team · 4 players + 1 substitute</p>}</div>
+        </div>
         <div role="status" className="flex gap-3 py-5 mt-3 border-b border-border text-sm"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-warning"/><p className="text-muted-foreground">{isLoading ? 'Checking tournament status…' : settingsError ? 'Tournament status unavailable. Entries are paused.' : closed ? 'Sapience Cup 2026 is under school approval. Entries are not being accepted yet.' : 'Entries are being accepted.'}</p></div>
         {!user && !playerLoading && <div className="flex flex-wrap items-center justify-between gap-3 py-5 border-b border-border"><p className="text-sm text-muted-foreground">Your entry belongs to your player account.</p><Button asChild variant="outline" size="sm"><Link to="/player-login">Player sign in<ArrowRight/></Link></Button></div>}
         <form onSubmit={submit}>

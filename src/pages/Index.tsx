@@ -5,24 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import battleground from '@/assets/sapience-battleground.jpg';
 import football from '@/assets/sapience-football.jpg';
+import HomeTrailer from '@/components/HomeTrailer';
+import { registrationFee, registrationFeeLabel } from '@/lib/registration-fees';
 const Index=()=>{
  const {data:news=[]}=useQuery({queryKey:['homeDispatches'],queryFn:async()=>{const {data,error}=await supabase.from('announcements').select('id,title,content,created_at').order('created_at',{ascending:false}).limit(3);if(error)throw error;return data||[];}});
  return <main>
- <section className="relative overflow-hidden border-b border-border film-grain letterbox">
- <img src={battleground} width={1920} height={1024} alt="Battle royale squad in a mountain battleground" className="absolute inset-0 w-full h-full object-cover object-[65%_center]" fetchPriority="high"/>
- <div className="absolute inset-0 hero-shade"/>
- <div className="absolute inset-0 ember-glow"/>
- <span className="hud-corner hud-tl"/><span className="hud-corner hud-tr"/><span className="hud-corner hud-bl"/><span className="hud-corner hud-br"/>
- <div className="absolute top-9 right-12 z-[7] hidden md:flex items-center gap-2 font-mono-tag text-[9px] uppercase text-muted-foreground"><span className="h-1.5 w-1.5 rounded-full bg-primary hud-blink"/>Live broadcast hub</div>
- <div className="container px-5 relative z-[8] pt-20 pb-16 md:pt-28 md:pb-24">
- <div className="hero-reveal flex items-center gap-2 text-[10px] uppercase font-mono-tag text-muted-foreground mb-9"><span className="w-5 h-px bg-primary"/>The Sapience School · Vikasnagar</div>
- <div className="hero-reveal-2 inline-flex gap-2 items-center bg-background/60 border border-warning/30 px-3 py-2 text-[10px] text-warning uppercase font-mono-tag"><span className="h-1.5 w-1.5 rounded-full bg-warning"/>Under school approval</div>
- <h1 className="hero-reveal-2 font-display text-5xl sm:text-6xl md:text-8xl font-bold uppercase leading-[1.02] mt-5">Sapience<br/><span className="text-primary">eSports.</span></h1>
- <p className="hero-reveal-3 mt-5 max-w-sm text-sm text-muted-foreground leading-relaxed">Sapience Cup 2026<br/>BGMI squads. FC Mobile competitors.</p>
- <div className="hero-reveal-3 mt-8 flex flex-wrap gap-3"><Button asChild className="rounded-none uppercase text-xs h-11 px-5 font-bold"><a href="#tournaments">Explore tournaments<ArrowUpRight/></a></Button><Button asChild variant="outline" className="rounded-none uppercase text-xs h-11 bg-background/30"><Link to="/rules">Official rulebook<ArrowRight/></Link></Button></div>
- <div className="mt-12 pt-5 border-t border-border/60 max-w-sm flex items-center justify-between"><div><span className="section-label">In the spotlight</span><div className="font-display font-bold text-base uppercase mt-1">Sapience Cup 2026</div></div><span className="font-mono-tag text-[10px] text-muted-foreground">01 / 01</span></div>
- </div>
- </section>
+ <HomeTrailer />
  <section className="border-b border-border bg-card/60">
  <div className="container px-5 py-8 grid md:grid-cols-3 gap-5">
  {[{tag:'Match centre',title:'Brackets & fixtures',desc:'Live knockout brackets for BGMI squads and FC Mobile 1v1.',to:'/brackets'},{tag:'Room protocol',title:'Room ID & password',desc:'BGMI custom room credentials drop 10 minutes before check-in.',to:'/team-login'},{tag:'Standings',title:'Leaderboards',desc:'Game-wise and individual standings update after every match.',to:'/leaderboard'}].map(c=><Link key={c.title} to={c.to} className="group border border-border bg-background/40 p-5 hover:border-primary/50 transition-colors"><p className="section-label">{c.tag}</p><h3 className="font-display font-bold text-lg uppercase mt-2 flex items-center justify-between">{c.title}<ArrowUpRight className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity"/></h3><p className="text-xs text-muted-foreground mt-2 leading-relaxed">{c.desc}</p></Link>)}

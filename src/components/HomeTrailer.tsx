@@ -1,0 +1,45 @@
+import { useState } from 'react';
+import { ArrowUpRight, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import trailer from '@/assets/sapience-trailer.mp4.asset.json';
+import poster from '@/assets/sapience-trailer-poster.jpg.asset.json';
+
+export default function HomeTrailer() {
+  const [failed, setFailed] = useState(false);
+
+  return <section className="border-b border-border bg-background" aria-labelledby="home-title">
+    <div className="container px-5 py-7 md:py-9 flex flex-col md:flex-row md:items-end justify-between gap-5">
+      <div>
+        <p className="section-label">The Sapience School · Vikasnagar</p>
+        <h1 id="home-title" className="font-display text-4xl sm:text-5xl font-bold uppercase mt-3">Sapience <span className="text-primary">eSports.</span></h1>
+      </div>
+      <div className="md:text-right">
+        <p className="font-display font-bold text-lg">Sapience Cup 2026</p>
+        <p className="text-warning text-xs mt-2">Under school approval</p>
+      </div>
+    </div>
+    <div className="relative bg-background">
+      <video
+        className="block w-full aspect-video max-h-[56svh] object-contain"
+        controls
+        playsInline
+        preload="none"
+        poster={poster.url}
+        aria-label="Sapience Cup 2026 cinematic trailer"
+        onError={() => setFailed(true)}
+      >
+        <source src={trailer.url} type="video/mp4" />
+        <a href={trailer.url}>Watch the Sapience Cup 2026 trailer</a>
+      </video>
+      {failed && <p role="alert" className="container px-5 py-3 text-sm text-muted-foreground">The trailer could not load. <a href={trailer.url} className="text-primary underline">Open trailer</a></p>}
+    </div>
+    <div className="container px-5 py-5 flex flex-wrap items-center justify-between gap-4">
+      <p className="text-sm text-muted-foreground">BGMI squads. FC Mobile competitors.</p>
+      <div className="flex flex-wrap gap-3">
+        <Button asChild className="rounded-none uppercase text-xs h-10"><a href="#tournaments">Explore tournaments<ArrowUpRight /></a></Button>
+        <Button asChild variant="outline" className="rounded-none uppercase text-xs h-10"><Link to="/rules">Official rulebook<ArrowRight /></Link></Button>
+      </div>
+    </div>
+  </section>;
+}
