@@ -279,6 +279,59 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_submissions: {
+        Row: {
+          amount: number
+          id: string
+          payer_name: string
+          player_entry_id: string
+          proof_path: string
+          review_note: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+          transaction_reference: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          id?: string
+          payer_name?: string
+          player_entry_id: string
+          proof_path: string
+          review_note?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          transaction_reference: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          id?: string
+          payer_name?: string
+          player_entry_id?: string
+          proof_path?: string
+          review_note?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          transaction_reference?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_submissions_player_entry_id_fkey"
+            columns: ["player_entry_id"]
+            isOneToOne: true
+            referencedRelation: "player_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       player_entries: {
         Row: {
           created_at: string
@@ -551,6 +604,10 @@ export type Database = {
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       register_player_entry: { Args: { payload: Json }; Returns: string }
       register_tournament_entry: { Args: { payload: Json }; Returns: string }
+      review_payment_proof: {
+        Args: { decision: string; note?: string; submission_id: string }
+        Returns: undefined
+      }
       squad_roster: {
         Args: { code: string }
         Returns: {
@@ -559,6 +616,10 @@ export type Database = {
           role: string
           slot: number
         }[]
+      }
+      submit_payment_proof: {
+        Args: { entry_id: string; object_path: string; reference: string }
+        Returns: undefined
       }
       update_leaderboard_rankings: { Args: never; Returns: undefined }
     }
