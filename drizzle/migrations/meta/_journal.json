@@ -36,6 +36,13 @@
       "when": 1792199292478,
       "tag": "0004_staff_roster_review_access",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792384408698,
+      "tag": "0005_manual_payment_review",
+      "breakpoints": true
     }
   ]
 }
