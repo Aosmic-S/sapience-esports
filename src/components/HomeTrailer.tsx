@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowUpRight, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import trailer from '@/assets/sapience-trailer.mp4.asset.json';
+import trailer from '@/assets/sapience-trailer-web.mp4.asset.json';
 import poster from '@/assets/sapience-trailer-poster.jpg.asset.json';
 
 export default function HomeTrailer() {
