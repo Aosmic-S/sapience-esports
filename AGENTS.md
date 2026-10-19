@@ -13,3 +13,5 @@
 ## Website
 - Use a shared navigation, footer, and semantic dark theme across public screens so branding remains consistent.
 - Register BGMI captains and teammates through atomic database functions so roster capacity and admission checks cannot race.
+- Keep entry charges in a shared registration-fee module used by public fee displays and concrete-value tests so pricing stays consistent.
+- Serve the homepage trailer and poster through asset pointers with user-initiated native video controls to preserve mobile playback and accessibility.
