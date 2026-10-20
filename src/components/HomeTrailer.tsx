@@ -23,15 +23,18 @@ export default function HomeTrailer() {
     <div className="relative bg-background">
       <video
         className="block w-full aspect-video max-h-[56svh] object-contain"
+        autoPlay
+        loop
+        muted
         controls
         playsInline
-        preload="none"
+        preload="auto"
         poster={poster.url}
         aria-label="Sapience Cup 2026 cinematic trailer"
         onError={() => setFailed(true)}
       >
-        <source src={webTrailer.url} type="video/webm" />
         <source src={trailer.url} type="video/mp4" />
+        <source src={webTrailer.url} type="video/webm" />
         <a href={trailer.url}>Watch the Sapience Cup 2026 trailer</a>
       </video>
       {failed && <p role="alert" className="container px-5 py-3 text-sm text-muted-foreground">The trailer could not load. <a href={trailer.url} className="text-primary underline">Open trailer</a></p>}
