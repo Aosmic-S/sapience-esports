@@ -24,10 +24,22 @@ export default function PlayerLogin() {
       } else if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin + '/player-login', data: { display_name: name.trim() } } });
         if (error) throw error;
-        if (!data.session) setMessage('Check your email to confirm your player account before signing in.');
+        if (!data.session) {
+          setMessage('Account created! Please check your email inbox to confirm your account, then sign in.');
+        } else {
+          setMessage('Account created and signed in successfully!');
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
+        if (error) {
+          if (error.message?.includes('Email not confirmed')) {
+            throw new Error('Please confirm your email address via the link sent to your inbox before signing in.');
+          }
+          if (error.message?.includes('Invalid login credentials')) {
+            throw new Error('Invalid email or password. If you registered via team pass, use the Team / Competitor Login portal.');
+          }
+          throw error;
+        }
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in. Please try again.'); }
     finally { setBusy(false); }
@@ -40,7 +52,13 @@ export default function PlayerLogin() {
         provider: 'google',
         options: { redirectTo: redirectUri }
       });
-      if (error) setError(error.message);
+      if (error) {
+        if (error.message?.includes('validation_failed') || error.message?.includes('missing OAuth secret') || error.message?.includes('Unsupported provider')) {
+          setError('Google OAuth credentials must be entered in Supabase Auth Provider settings (Auth -> Providers -> Google). Please use email/password login or Team Pass login above.');
+        } else {
+          setError(error.message);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign in failed. Please try again.');
     }

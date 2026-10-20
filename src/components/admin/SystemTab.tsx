@@ -109,7 +109,8 @@ const SystemTab = ({
         return;
       }
 
-      const { error } = await supabase
+      // First attempt update including trailer_video_url
+      let { error } = await supabase
         .from('system_settings')
         .update({
           registration_open: localSettings.registration_open,
@@ -118,8 +119,23 @@ const SystemTab = ({
           email_notifications: localSettings.email_notifications,
           trailer_video_url: localSettings.trailer_video_url || '',
           updated_at: new Date().toISOString()
-        })
+        } as any)
         .eq('id', systemSettings.id || 1);
+
+      // If trailer_video_url column doesn't exist on remote schema yet, fallback to base settings update
+      if (error && error.message?.includes('trailer_video_url')) {
+        const fallback = await supabase
+          .from('system_settings')
+          .update({
+            registration_open: localSettings.registration_open,
+            max_participants: localSettings.max_participants,
+            auto_approval: localSettings.auto_approval,
+            email_notifications: localSettings.email_notifications,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', systemSettings.id || 1);
+        error = fallback.error;
+      }
 
       if (error) {
         console.error('Error updating settings:', error);
