@@ -45,12 +45,17 @@ export default function Register() {
       if (error) throw error;
       if (!team || team.game !== 'bgmi') throw new Error('No BGMI squad found with this code.');
       if (!['active', 'waitlisted'].includes(team.status || 'active')) throw new Error('This squad is not accepting players.');
-      const { data: members, error: membersErr } = await supabase.from('team_members').select('id').eq('team_number', clean);
-      let count = members?.length || 0;
-      if (membersErr || count === 0) {
-        const { data: roster } = await supabase.rpc('squad_roster', { code: clean });
-        count = roster?.length || 0;
+
+      const { data: roster, error: rosterErr } = await supabase.rpc('squad_roster', { code: clean });
+      let count = roster?.length || 0;
+
+      if (rosterErr || count === 0) {
+        const { data: members } = await supabase.from('team_members').select('id, slot').eq('team_number', clean);
+        const list = members || [];
+        const hasSlot1 = list.some((m: any) => m.slot === 1);
+        count = hasSlot1 ? list.length : list.length + 1;
       }
+
       if (count >= 5) throw new Error('This squad already has 5 players.');
       setVerified({ name: team.team_name || 'BGMI squad', count, code: clean });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not look up this squad.'); }
@@ -59,7 +64,8 @@ export default function Register() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setError('');
     if (closed) { setError('Sapience Cup 2026 is under school approval. Entries are not being accepted yet.'); return; }
-    if (!user) { setError('Sign in to your player account first.'); return; }
+    if (!user) { setError('Please sign in to your player account first.'); return; }
+    if (!accepted) { setError('Please accept the school eligibility requirements and official rules.'); return; }
     if (joining && (!verified || verified.code !== code.trim().toUpperCase())) { setError('Check your squad code first.'); return; }
     setBusy(true);
     try {
@@ -90,7 +96,7 @@ export default function Register() {
           <section className="registration-section"><h2 className="text-lg font-bold mb-5">Student details</h2><div className="grid sm:grid-cols-2 gap-5">{field('full_name', 'Full name', { autoComplete: 'name', minLength: 2 })}{field('admission_no', 'Admission number', { minLength: 2, maxLength: 50 })}{field('class_section', 'Class & section', { placeholder: '10-A', pattern: '(9|10|11|12)([^0-9].*)?', title: 'Class 9, 10, 11 or 12 with your section' })}{field('phone_number', 'Contact / WhatsApp number', { type: 'tel', autoComplete: 'tel', pattern: '[0-9+ ()\\-]{7,20}', maxLength: 20 })}</div></section>
           <section className="registration-section"><h2 className="text-lg font-bold mb-5">Game profile</h2><div className="grid sm:grid-cols-2 gap-5">{field('in_game_id', 'In-game name', { minLength: 2, maxLength: 60 })}{field('uid', 'In-game UID', { minLength: 3, maxLength: 60 })}<div className="space-y-2"><Label htmlFor="rank">{bgmi ? 'Current rank' : 'H2H division'}</Label><Select value={bgmi ? fields.player_rank : fields.fcDivision} onValueChange={value => update(bgmi ? 'player_rank' : 'fcDivision', value)}><SelectTrigger id="rank"><SelectValue/></SelectTrigger><SelectContent>{(bgmi ? ranks : divisions).map(rank => <SelectItem value={rank} key={rank}>{rank}</SelectItem>)}</SelectContent></Select></div>{bgmi ? field('player_level', 'Player level', { type: 'number', required: false, min: 1, step: 1 }) : field('team_ovr', 'Team OVR', { type: 'number', min: 1, step: 1 })}</div>{bgmi && joining && <div className="space-y-2 mt-5"><Label htmlFor="role">Roster role</Label><Select value={fields.role} onValueChange={value => update('role', value)}><SelectTrigger id="role"><SelectValue/></SelectTrigger><SelectContent>{roles.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}</SelectContent></Select></div>}{bgmi && !joining && <p className="text-xs text-muted-foreground mt-4">Captain · IGL · Roster slot 1</p>}</section>
           {!joining && <section className="registration-section"><h2 className="text-lg font-bold mb-5">Tournament pass</h2>{field('password', 'Entry password', { type: 'password', autoComplete: 'new-password', minLength: 6 })}</section>}
-          <div className="registration-section"><div className="flex items-start gap-3"><Checkbox id="acceptRules" checked={accepted} onCheckedChange={value => setAccepted(value === true)}/><Label htmlFor="acceptRules" className="text-sm leading-relaxed text-muted-foreground">I meet the school eligibility requirements and agree to the <Link to="/rules" className="text-foreground underline">official rules</Link>.</Label></div>{error && <p role="alert" className="text-destructive text-sm mt-5">{error}</p>}<Button className="mt-6 w-full sm:w-auto" type="submit" disabled={busy || closed || !user || !accepted || (joining && !verified)}>{closed ? 'Under school approval' : busy ? 'Saving entry…' : joining ? 'Join squad' : bgmi ? 'Create squad' : 'Submit solo entry'}<ArrowRight/></Button></div>
+          <div className="registration-section"><div className="flex items-start gap-3"><Checkbox id="acceptRules" checked={accepted} onCheckedChange={value => setAccepted(value === true)}/><Label htmlFor="acceptRules" className="text-sm leading-relaxed text-muted-foreground">I meet the school eligibility requirements and agree to the <Link to="/rules" className="text-foreground underline">official rules</Link>.</Label></div>{error && <p role="alert" className="text-destructive text-sm mt-5">{error}</p>}<Button className="mt-6 w-full sm:w-auto" type="submit" disabled={busy || closed || (joining && !verified)}>{closed ? 'Under school approval' : busy ? 'Saving entry…' : joining ? 'Join squad' : bgmi ? 'Create squad' : 'Submit solo entry'}<ArrowRight/></Button></div>
         </form>
       </div>
     </div>}
