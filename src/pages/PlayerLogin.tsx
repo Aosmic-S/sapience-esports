@@ -53,14 +53,20 @@ export default function PlayerLogin() {
         options: { redirectTo: redirectUri }
       });
       if (error) {
-        if (error.message?.includes('validation_failed') || error.message?.includes('missing OAuth secret') || error.message?.includes('Unsupported provider')) {
-          setError('Google OAuth credentials must be entered in Supabase Auth Provider settings (Auth -> Providers -> Google). Please use email/password login or Team Pass login above.');
+        const errStr = typeof error === 'string' ? error : (error.message || '') + ' ' + JSON.stringify(error);
+        if (errStr.includes('validation_failed') || errStr.includes('missing OAuth secret') || errStr.includes('Unsupported provider')) {
+          setError('Google OAuth is not configured on this Supabase project yet (Missing Google Client Secret in Supabase Auth -> Providers -> Google). Please sign in with email/password or use Team / Solo Pass login above.');
         } else {
-          setError(error.message);
+          setError(error.message || 'Google sign in failed.');
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign in failed. Please try again.');
+      const errStr = err instanceof Error ? err.message : JSON.stringify(err);
+      if (errStr.includes('validation_failed') || errStr.includes('missing OAuth secret') || errStr.includes('Unsupported provider')) {
+        setError('Google OAuth is not configured on this Supabase project yet (Missing Google Client Secret in Supabase Auth -> Providers -> Google). Please sign in with email/password or use Team / Solo Pass login above.');
+      } else {
+        setError(errStr || 'Google sign in failed. Please try again.');
+      }
     }
   };
   return <main className="container max-w-5xl px-5 py-12 md:py-20 min-h-[70vh]">
