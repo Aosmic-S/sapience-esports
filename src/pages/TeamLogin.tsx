@@ -50,13 +50,12 @@ export default function TeamLogin() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase
+      const { data: records, error } = await supabase
         .from('registrations')
         .select('*')
-        .eq('team_number', cleanId)
-        .maybeSingle();
+        .ilike('team_number', cleanId);
 
-      if (error || !data) {
+      if (error || !records || records.length === 0) {
         toast({
           title: "Account Not Found",
           description: `No registration found for ID "${cleanId}". Please verify your credentials.`,
@@ -64,6 +63,8 @@ export default function TeamLogin() {
         });
         return;
       }
+
+      const data = records[0];
 
       // Check password
       if (data.password_hash !== password.trim()) {

@@ -39,28 +39,39 @@ export default function TeamDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const session = sessionStorage.getItem('teamSession');
-    if (!session) {
-      navigate('/team-login');
-      return;
+    try {
+      const session = sessionStorage.getItem('teamSession');
+      if (!session) {
+        navigate('/team-login', { replace: true });
+        return;
+      }
+      const parsed = JSON.parse(session);
+      if (!parsed || !parsed.teamNumber) {
+        sessionStorage.removeItem('teamSession');
+        navigate('/team-login', { replace: true });
+        return;
+      }
+      setTeamSession(parsed);
+    } catch {
+      sessionStorage.removeItem('teamSession');
+      navigate('/team-login', { replace: true });
     }
-    setTeamSession(JSON.parse(session));
   }, [navigate]);
 
   // Fetch full registration details for real-time status & DQ check
   const { data: teamDetails } = useQuery({
     queryKey: ['teamDetails', teamSession?.teamNumber],
     queryFn: async () => {
-      if (!teamSession) return null;
+      if (!teamSession?.teamNumber) return null;
       const { data, error } = await supabase
         .from('registrations')
         .select('*')
-        .eq('team_number', teamSession.teamNumber)
+        .ilike('team_number', teamSession.teamNumber)
         .maybeSingle();
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
-    enabled: !!teamSession
+    enabled: !!teamSession?.teamNumber
   });
 
   // Fetch 5-player Krafton Roster if BGMI

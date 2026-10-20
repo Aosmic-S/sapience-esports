@@ -45,10 +45,14 @@ export default function Register() {
       if (error) throw error;
       if (!team || team.game !== 'bgmi') throw new Error('No BGMI squad found with this code.');
       if (!['active', 'waitlisted'].includes(team.status || 'active')) throw new Error('This squad is not accepting players.');
-      const { data: roster, error: rosterError } = await supabase.rpc('squad_roster', { code: clean });
-      if (rosterError) throw rosterError;
-      if ((roster?.length || 0) >= 5) throw new Error('This squad already has 5 players.');
-      setVerified({ name: team.team_name || 'BGMI squad', count: roster?.length || 0, code: clean });
+      const { data: members, error: membersErr } = await supabase.from('team_members').select('id').eq('team_number', clean);
+      let count = members?.length || 0;
+      if (membersErr || count === 0) {
+        const { data: roster } = await supabase.rpc('squad_roster', { code: clean });
+        count = roster?.length || 0;
+      }
+      if (count >= 5) throw new Error('This squad already has 5 players.');
+      setVerified({ name: team.team_name || 'BGMI squad', count, code: clean });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not look up this squad.'); }
     finally { setChecking(false); }
   };

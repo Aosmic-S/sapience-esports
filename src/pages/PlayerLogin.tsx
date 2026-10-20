@@ -35,8 +35,22 @@ export default function PlayerLogin() {
     finally { setBusy(false); }
   };
   const social = async (provider: 'google' | 'lovable') => {
-    setError(''); const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin + '/player-login' });
-    if (result.error) setError(result.error.message);
+    setError('');
+    try {
+      const redirectUri = `${window.location.origin}/player-login`;
+      if (provider === 'google') {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: redirectUri }
+        });
+        if (error) setError(error.message);
+      } else {
+        const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: redirectUri });
+        if (result.error) setError(result.error.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Social sign in failed. Please try again.');
+    }
   };
   return <main className="container max-w-5xl px-5 py-12 md:py-20 min-h-[70vh]">
     <div className="grid md:grid-cols-[1fr_1fr] gap-12 md:gap-24 items-start">
