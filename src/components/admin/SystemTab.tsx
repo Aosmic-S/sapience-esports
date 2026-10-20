@@ -53,8 +53,14 @@ const SystemTab = ({
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    const localVideoUrl = typeof window !== 'undefined' ? localStorage.getItem('sapience_trailer_video_url') : null;
     if (systemSettings) {
-      setLocalSettings(systemSettings);
+      setLocalSettings({
+        ...systemSettings,
+        trailer_video_url: systemSettings.trailer_video_url || localVideoUrl || ''
+      });
+    } else if (localVideoUrl) {
+      setLocalSettings(prev => ({ ...prev, trailer_video_url: localVideoUrl }));
     }
   }, [systemSettings]);
 
@@ -104,6 +110,10 @@ const SystemTab = ({
     setIsLoading(true);
     
     try {
+      if (typeof window !== 'undefined' && localSettings.trailer_video_url !== undefined) {
+        localStorage.setItem('sapience_trailer_video_url', localSettings.trailer_video_url || '');
+      }
+
       if (!systemSettings) {
         await createInitialSettings();
         return;
