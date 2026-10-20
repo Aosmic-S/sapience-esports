@@ -6,9 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable';
 import { usePlayer } from '@/hooks/usePlayer';
-import '@lovable.dev/cloud-auth-js/styles.css';
 
 export default function PlayerLogin() {
   const { user } = usePlayer(); const navigate = useNavigate();
@@ -34,22 +32,17 @@ export default function PlayerLogin() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in. Please try again.'); }
     finally { setBusy(false); }
   };
-  const social = async (provider: 'google' | 'lovable') => {
+  const googleLogin = async () => {
     setError('');
     try {
       const redirectUri = `${window.location.origin}/player-login`;
-      if (provider === 'google') {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: { redirectTo: redirectUri }
-        });
-        if (error) setError(error.message);
-      } else {
-        const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: redirectUri });
-        if (result.error) setError(result.error.message);
-      }
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUri }
+      });
+      if (error) setError(error.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Social sign in failed. Please try again.');
+      setError(err instanceof Error ? err.message : 'Google sign in failed. Please try again.');
     }
   };
   return <main className="container max-w-5xl px-5 py-12 md:py-20 min-h-[70vh]">
@@ -65,7 +58,7 @@ export default function PlayerLogin() {
           <Button disabled={busy} className="w-full" type="submit">{busy?'Please wait…':mode==='signup'?'Create player account':mode==='forgot'?'Send reset link':'Sign in'}<ArrowRight/></Button>
         </form>
         <Button variant="link" className="px-0 mt-2 text-muted-foreground" onClick={()=>{setMode(mode==='forgot'?'login':'forgot');setMessage('');setError('');}}>{mode==='forgot'?'Back to sign in':'Forgot password?'}</Button>
-        {mode !== 'forgot' && <div className="mt-6 pt-6 border-t border-border space-y-3"><Button variant="outline" className="w-full" onClick={()=>void social('google')}>Continue with Google</Button><Button className="lovable-auth-button w-full" onClick={()=>void social('lovable')}>Continue with Lovable</Button></div>}
+        {mode !== 'forgot' && <div className="mt-6 pt-6 border-t border-border space-y-3"><Button variant="outline" className="w-full" onClick={()=>void googleLogin()}>Continue with Google</Button></div>}
       </div>
     </div>
   </main>;
