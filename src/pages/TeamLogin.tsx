@@ -53,12 +53,12 @@ export default function TeamLogin() {
       const { data: records, error } = await supabase
         .from('registrations')
         .select('*')
-        .ilike('team_number', cleanId);
+        .or(`team_number.ilike.${cleanId},admission_no.ilike.${cleanId}`);
 
       if (error || !records || records.length === 0) {
         toast({
           title: "Account Not Found",
-          description: `No registration found for ID "${cleanId}". Please verify your credentials.`,
+          description: `No registration found for ID or Admission No "${cleanId}". Please verify your credentials.`,
           variant: "destructive",
         });
         return;
