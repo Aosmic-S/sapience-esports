@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles } from 'lucide-react';
+import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles, Plus, Edit3 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import RegistrationAuditModal from './RegistrationAuditModal';
 
@@ -27,6 +27,7 @@ export interface Registration {
   members?: string[];
   status?: 'active' | 'eliminated' | 'disqualified' | string;
   dq_reason?: string;
+  is_present?: boolean;
 }
 
 interface RegistrationsTabProps {
@@ -43,6 +44,25 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
   const [auditOpen, setAuditOpen] = useState(false);
   const [dqTarget, setDqTarget] = useState<Registration | null>(null);
   const [dqReason, setDqReason] = useState('Emulator / Unauthorized hardware');
+
+  // QR Check-in scanner modal state
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const [scanResult, setScanResult] = useState<Registration | null>(null);
+
+  // Create / Edit Team Code modal state
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<Registration | null>(null);
+  const [formCustomCode, setFormCustomCode] = useState('');
+  const [formTeamName, setFormTeamName] = useState('');
+  const [formFullName, setFormFullName] = useState('');
+  const [formAdmissionNo, setFormAdmissionNo] = useState('');
+  const [formClassSec, setFormClassSec] = useState('X-A');
+  const [formGame, setFormGame] = useState('bgmi');
+  const [formEntryType, setFormEntryType] = useState('squad');
+  const [formPhone, setFormPhone] = useState('');
+  const [formPass, setFormPass] = useState('sapience123');
+  const [submittingTeam, setSubmittingTeam] = useState(false);
 
   useEffect(() => {
     let filtered = [...registrations];
@@ -69,6 +89,119 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
 
     setFilteredRegistrations(filtered);
   }, [registrations, filters, search]);
+
+  const toggleAttendance = async (id: string, isPresent: boolean) => {
+    const { error } = await supabase.from('registrations').update({ is_present: isPresent } as any).eq('id', id);
+    if (error) {
+      toast({ title: "Attendance Update Failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: isPresent ? "Team Marked PRESENT" : "Team Marked ABSENT", description: "Attendance updated." });
+      onRegistrationsChange();
+    }
+  };
+
+  const handleQrScanSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = scanInput.trim().toLowerCase();
+    if (!query) return;
+    const match = registrations.find(r =>
+      r.team_number?.toLowerCase() === query ||
+      r.admission_no?.toLowerCase() === query ||
+      r.id.toLowerCase() === query
+    );
+    if (match) {
+      setScanResult(match);
+    } else {
+      toast({ title: "Pass Not Found", description: `No team pass matching ${scanInput}`, variant: "destructive" });
+      setScanResult(null);
+    }
+  };
+
+  const confirmQrCheckIn = async (match: Registration) => {
+    await toggleAttendance(match.id, true);
+    setScanResult(null);
+    setScanInput('');
+    setQrModalOpen(false);
+  };
+
+  const openCreateTeamModal = () => {
+    setEditingTarget(null);
+    setFormCustomCode(`100${Math.floor(100 + Math.random() * 899)}`);
+    setFormTeamName('');
+    setFormFullName('');
+    setFormAdmissionNo('');
+    setFormClassSec('X-A');
+    setFormGame('bgmi');
+    setFormEntryType('squad');
+    setFormPhone('9876543210');
+    setFormPass('sapience123');
+    setTeamModalOpen(true);
+  };
+
+  const openEditTeamModal = (reg: Registration) => {
+    setEditingTarget(reg);
+    setFormCustomCode(reg.team_number || '');
+    setFormTeamName(reg.team_name || '');
+    setFormFullName(reg.full_name || '');
+    setFormAdmissionNo(reg.admission_no || '');
+    setFormClassSec(reg.class_section || 'X-A');
+    setFormGame(reg.game || 'bgmi');
+    setFormEntryType(reg.entry_type || 'squad');
+    setFormPhone(reg.phone_number || '');
+    setFormPass('sapience123');
+    setTeamModalOpen(true);
+  };
+
+  const handleSaveTeamCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formCustomCode.trim() || !formFullName.trim()) {
+      toast({ title: "Validation Error", description: "Team code and Captain name are required.", variant: "destructive" });
+      return;
+    }
+    setSubmittingTeam(true);
+    try {
+      if (editingTarget) {
+        // Update existing registration
+        const { error } = await supabase.from('registrations').update({
+          team_number: formCustomCode.trim().toUpperCase(),
+          team_name: formTeamName.trim() || formFullName.trim(),
+          full_name: formFullName.trim(),
+          admission_no: formAdmissionNo.trim(),
+          class_section: formClassSec.trim(),
+          game: formGame,
+          entry_type: formEntryType,
+          phone_number: formPhone.trim()
+        }).eq('id', editingTarget.id);
+
+        if (error) throw error;
+        toast({ title: "Team Code Updated", description: `Updated pass ${formCustomCode.trim().toUpperCase()}` });
+      } else {
+        // Insert new custom registration
+        const { error } = await supabase.from('registrations').insert([{
+          team_number: formCustomCode.trim().toUpperCase(),
+          team_name: formTeamName.trim() || formFullName.trim(),
+          full_name: formFullName.trim(),
+          admission_no: formAdmissionNo.trim() || 'ADM-ADMIN',
+          class_section: formClassSec.trim(),
+          game: formGame,
+          entry_type: formEntryType,
+          phone_number: formPhone.trim(),
+          password_hash: formPass.trim(),
+          status: 'active'
+        }]);
+
+        if (error) throw error;
+        toast({ title: "Team Code Created", description: `Generated pass ${formCustomCode.trim().toUpperCase()}` });
+      }
+
+      setTeamModalOpen(false);
+      onRegistrationsChange();
+    } catch (err: any) {
+      toast({ title: "Save Failed", description: err.message || "Could not save team code.", variant: "destructive" });
+    } finally {
+      setSubmittingTeam(false);
+    }
+  };
 
   const updateTeamStatus = async (id: string, status: 'active' | 'eliminated' | 'disqualified', reason?: string) => {
     const payload = { status, dq_reason: status === 'disqualified' ? reason || 'Rule violation' : null };
@@ -195,6 +328,12 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
           </Select>
         </div>
 
+        <Button onClick={openCreateTeamModal} variant="default" size="sm" className="gap-1 uppercase text-xs font-bold bg-primary text-black hover:bg-primary/90">
+          <Plus className="w-4 h-4" /> Add Team Code
+        </Button>
+        <Button onClick={() => setQrModalOpen(true)} variant="outline" size="sm" className="gap-1 uppercase text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 text-primary" /> Scan QR
+        </Button>
         <Button onClick={() => setAuditOpen(true)} variant="outline" size="sm"><Sparkles className="w-4 h-4"/>AI review</Button>
         <Button onClick={exportToCSV} variant="outline" size="sm" className="gap-2 border-border">
           <Download className="w-4 h-4" /> Export CSV
@@ -248,7 +387,16 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
                         )}
                         {(!reg.status || reg.status === 'active') && (
                           <Badge variant="outline" className="text-success border-success/40 uppercase font-mono text-[10px] gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Active
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                          </Badge>
+                        )}
+                        {reg.is_present ? (
+                          <Badge className="bg-success/20 text-success border-success/40 font-mono text-[10px] uppercase gap-1">
+                            Present
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="font-mono text-[10px] uppercase gap-1 opacity-60">
+                            Absent
                           </Badge>
                         )}
                         <Badge variant="secondary" className="uppercase font-mono text-[10px]">
@@ -271,8 +419,27 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
                       )}
                     </div>
 
-                    {/* Quick Management Buttons */}
+                    {/* Attendance Toggle & Quick Management Buttons */}
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Edit Team Code Details"
+                        className="h-8 text-xs font-bold uppercase text-primary hover:bg-primary/10"
+                        onClick={() => openEditTeamModal(reg)}
+                      >
+                        <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Pass
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant={reg.is_present ? "secondary" : "outline"}
+                        className={`h-8 text-xs font-bold uppercase ${reg.is_present ? 'text-success border-success/30' : 'text-muted-foreground'}`}
+                        onClick={() => toggleAttendance(reg.id, !reg.is_present)}
+                      >
+                        {reg.is_present ? 'Mark Absent' : 'Mark Present'}
+                      </Button>
+
                       {isDQ || isEliminated ? (
                         <Button 
                           size="sm" 
@@ -321,6 +488,190 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
       </div>
 
       <RegistrationAuditModal open={auditOpen} onOpenChange={setAuditOpen} registrations={registrations}/>
+
+      {/* Admin Add / Edit Team Code Modal */}
+      <Dialog open={teamModalOpen} onOpenChange={setTeamModalOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
+              <Plus className="w-5 h-5 text-primary" /> {editingTarget ? 'Edit Team Code Pass' : 'Add Custom Team Code'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveTeamCode} className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Team Code / Pass #</Label>
+                <Input
+                  value={formCustomCode}
+                  onChange={(e) => setFormCustomCode(e.target.value)}
+                  placeholder="e.g. 100045"
+                  required
+                  className="bg-background font-mono text-xs uppercase"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Pass Password</Label>
+                <Input
+                  value={formPass}
+                  onChange={(e) => setFormPass(e.target.value)}
+                  placeholder="e.g. sapience123"
+                  required
+                  className="bg-background text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Team / Squad Name</Label>
+                <Input
+                  value={formTeamName}
+                  onChange={(e) => setFormTeamName(e.target.value)}
+                  placeholder="e.g. Cyber Strikers"
+                  className="bg-background text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Captain / Solo Player Name</Label>
+                <Input
+                  value={formFullName}
+                  onChange={(e) => setFormFullName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                  required
+                  className="bg-background text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Admission No</Label>
+                <Input
+                  value={formAdmissionNo}
+                  onChange={(e) => setFormAdmissionNo(e.target.value)}
+                  placeholder="S-2024-12"
+                  className="bg-background text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Class & Sec</Label>
+                <Input
+                  value={formClassSec}
+                  onChange={(e) => setFormClassSec(e.target.value)}
+                  placeholder="X-A"
+                  className="bg-background text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone Number</Label>
+                <Input
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
+                  placeholder="9876543210"
+                  className="bg-background text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Game Title</Label>
+                <Select value={formGame} onValueChange={setFormGame}>
+                  <SelectTrigger className="bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bgmi">BGMI Squad</SelectItem>
+                    <SelectItem value="fc-mobile">EA SPORTS FC Mobile</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Entry Format</Label>
+                <Select value={formEntryType} onValueChange={setFormEntryType}>
+                  <SelectTrigger className="bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="squad">5-Player Squad</SelectItem>
+                    <SelectItem value="solo">Solo Player</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="ghost" onClick={() => setTeamModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={submittingTeam} className="bg-primary text-black font-bold uppercase text-xs">
+                {submittingTeam ? 'Saving Pass...' : editingTarget ? 'Update Pass Details' : 'Create Team Code Pass'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Check-in Scanner Modal */}
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="sm:max-w-[480px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
+              <CheckCircle2 className="w-5 h-5 text-primary" /> Venue QR Code Check-in
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Scan team QR Code using a handheld scanner or enter the team code / admission number below to mark physical attendance and unlock Room ID & Password for the team.
+            </p>
+            <form onSubmit={handleQrScanSearch} className="flex gap-2">
+              <Input
+                placeholder="Scan / enter Team Code e.g. 100045"
+                value={scanInput}
+                onChange={(e) => setScanInput(e.target.value)}
+                autoFocus
+                className="bg-background text-xs font-mono uppercase"
+              />
+              <Button type="submit" size="sm" variant="default" className="uppercase text-xs font-bold shrink-0">
+                Lookup Pass
+              </Button>
+            </form>
+
+            {scanResult && (
+              <div className="p-4 bg-secondary/80 border border-border rounded-lg space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/40 uppercase">
+                      {scanResult.game.toUpperCase()}
+                    </Badge>
+                    <h4 className="font-bold text-sm text-foreground mt-1">{scanResult.team_name || scanResult.full_name}</h4>
+                    <p className="text-xs font-mono text-muted-foreground">Pass #: {scanResult.team_number}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Captain: {scanResult.full_name} ({scanResult.admission_no || 'N/A'})</p>
+                  </div>
+                  {scanResult.is_present ? (
+                    <Badge className="bg-success/20 text-success border-success/40 uppercase font-mono text-[10px]">
+                      Already Present
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="uppercase font-mono text-[10px]">
+                      Pending Check-in
+                    </Badge>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => confirmQrCheckIn(scanResult)}
+                  size="sm"
+                  className="w-full bg-success text-white hover:bg-success/90 font-bold uppercase text-xs"
+                >
+                  Confirm Venue Attendance & Unlock Room Pass
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setQrModalOpen(false)}>Close Scanner</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Disqualification Reason Modal */}
       <Dialog open={!!dqTarget} onOpenChange={(open) => !open && setDqTarget(null)}>
         <DialogContent className="sm:max-w-[440px] bg-card border-border">
