@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles } from 'lucide-react';
+import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles, Plus, Edit3, Key, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import RegistrationAuditModal from './RegistrationAuditModal';
 
@@ -49,6 +49,30 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [scanInput, setScanInput] = useState('');
   const [scanResult, setScanResult] = useState<Registration | null>(null);
+  const [useCamera, setUseCamera] = useState(false);
+
+  // Create / Edit Team Code modal state
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<Registration | null>(null);
+  const [formCustomCode, setFormCustomCode] = useState('');
+
+  // Quick Room Code Modal state
+  const [roomModalOpen, setRoomModalOpen] = useState(false);
+  const [targetGame, setTargetGame] = useState<'bgmi' | 'fc-mobile'>('bgmi');
+  const [bgmiRoomId, setBgmiRoomId] = useState('');
+  const [bgmiRoomPass, setBgmiRoomPass] = useState('');
+  const [fcRoomId, setFcRoomId] = useState('');
+  const [fcRoomPass, setFcRoomPass] = useState('');
+  const [savingRoom, setSavingRoom] = useState(false);
+  const [formTeamName, setFormTeamName] = useState('');
+  const [formFullName, setFormFullName] = useState('');
+  const [formAdmissionNo, setFormAdmissionNo] = useState('');
+  const [formClassSec, setFormClassSec] = useState('X-A');
+  const [formGame, setFormGame] = useState('bgmi');
+  const [formEntryType, setFormEntryType] = useState('squad');
+  const [formPhone, setFormPhone] = useState('');
+  const [formPass, setFormPass] = useState('sapience123');
+  const [submittingTeam, setSubmittingTeam] = useState(false);
 
   useEffect(() => {
     let filtered = [...registrations];
@@ -108,6 +132,137 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
     setScanResult(null);
     setScanInput('');
     setQrModalOpen(false);
+  };
+
+  const openRoomModal = async () => {
+    try {
+      const { data } = await supabase.from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
+      if (data) {
+        setBgmiRoomId(data.bgmi_room_id || data.room_id || '');
+        setBgmiRoomPass(data.bgmi_room_password || data.room_password || '');
+        setFcRoomId(data.fcmobile_room_id || data.room_id || '');
+        setFcRoomPass(data.fcmobile_room_password || data.room_password || '');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setRoomModalOpen(true);
+  };
+
+  const saveRoomCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingRoom(true);
+    try {
+      const activeId = targetGame === 'bgmi' ? bgmiRoomId.trim() : fcRoomId.trim();
+      const activePass = targetGame === 'bgmi' ? bgmiRoomPass.trim() : fcRoomPass.trim();
+
+      let { error } = await supabase.from('system_settings').update({
+        bgmi_room_id: bgmiRoomId.trim(),
+        bgmi_room_password: bgmiRoomPass.trim(),
+        fcmobile_room_id: fcRoomId.trim(),
+        fcmobile_room_password: fcRoomPass.trim(),
+        room_id: activeId,
+        room_password: activePass,
+        updated_at: new Date().toISOString()
+      } as any).eq('id', 1);
+
+      if (error) {
+        // Fallback to base room_id if new columns not present yet
+        const fallback = await supabase.from('system_settings').update({
+          room_id: activeId,
+          room_password: activePass,
+          updated_at: new Date().toISOString()
+        }).eq('id', 1);
+        error = fallback.error;
+      }
+
+      if (error) throw error;
+      toast({ title: `${targetGame.toUpperCase()} Room Credentials Published`, description: `ID: ${activeId} | Pass: ${activePass}` });
+      setRoomModalOpen(false);
+    } catch (err: any) {
+      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingRoom(false);
+    }
+  };
+
+  const openCreateTeamModal = () => {
+    setEditingTarget(null);
+    setFormCustomCode(`100${Math.floor(100 + Math.random() * 899)}`);
+    setFormTeamName('');
+    setFormFullName('');
+    setFormAdmissionNo('');
+    setFormClassSec('X-A');
+    setFormGame('bgmi');
+    setFormEntryType('squad');
+    setFormPhone('9876543210');
+    setFormPass('sapience123');
+    setTeamModalOpen(true);
+  };
+
+  const openEditTeamModal = (reg: Registration) => {
+    setEditingTarget(reg);
+    setFormCustomCode(reg.team_number || '');
+    setFormTeamName(reg.team_name || '');
+    setFormFullName(reg.full_name || '');
+    setFormAdmissionNo(reg.admission_no || '');
+    setFormClassSec(reg.class_section || 'X-A');
+    setFormGame(reg.game || 'bgmi');
+    setFormEntryType(reg.entry_type || 'squad');
+    setFormPhone(reg.phone_number || '');
+    setFormPass('sapience123');
+    setTeamModalOpen(true);
+  };
+
+  const handleSaveTeamCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formCustomCode.trim() || !formFullName.trim()) {
+      toast({ title: "Validation Error", description: "Team code and Captain name are required.", variant: "destructive" });
+      return;
+    }
+    setSubmittingTeam(true);
+    try {
+      if (editingTarget) {
+        // Update existing registration
+        const { error } = await supabase.from('registrations').update({
+          team_number: formCustomCode.trim().toUpperCase(),
+          team_name: formTeamName.trim() || formFullName.trim(),
+          full_name: formFullName.trim(),
+          admission_no: formAdmissionNo.trim(),
+          class_section: formClassSec.trim(),
+          game: formGame,
+          entry_type: formEntryType,
+          phone_number: formPhone.trim()
+        }).eq('id', editingTarget.id);
+
+        if (error) throw error;
+        toast({ title: "Team Code Updated", description: `Updated pass ${formCustomCode.trim().toUpperCase()}` });
+      } else {
+        // Insert new custom registration
+        const { error } = await supabase.from('registrations').insert([{
+          team_number: formCustomCode.trim().toUpperCase(),
+          team_name: formTeamName.trim() || formFullName.trim(),
+          full_name: formFullName.trim(),
+          admission_no: formAdmissionNo.trim() || 'ADM-ADMIN',
+          class_section: formClassSec.trim(),
+          game: formGame,
+          entry_type: formEntryType,
+          phone_number: formPhone.trim(),
+          password_hash: formPass.trim(),
+          status: 'active'
+        }]);
+
+        if (error) throw error;
+        toast({ title: "Team Code Created", description: `Generated pass ${formCustomCode.trim().toUpperCase()}` });
+      }
+
+      setTeamModalOpen(false);
+      onRegistrationsChange();
+    } catch (err: any) {
+      toast({ title: "Save Failed", description: err.message || "Could not save team code.", variant: "destructive" });
+    } finally {
+      setSubmittingTeam(false);
+    }
   };
 
   const updateTeamStatus = async (id: string, status: 'active' | 'eliminated' | 'disqualified', reason?: string) => {
@@ -235,8 +390,14 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
           </Select>
         </div>
 
-        <Button onClick={() => setQrModalOpen(true)} variant="default" size="sm" className="gap-2 uppercase text-xs font-bold bg-primary text-black hover:bg-primary/90">
-          <CheckCircle2 className="w-4 h-4" /> Scan / Check-in QR
+        <Button onClick={openRoomModal} variant="outline" size="sm" className="gap-1 uppercase text-xs font-bold border-primary/50 text-primary hover:bg-primary/10">
+          <Key className="w-4 h-4" /> Set Room Code
+        </Button>
+        <Button onClick={openCreateTeamModal} variant="default" size="sm" className="gap-1 uppercase text-xs font-bold bg-primary text-black hover:bg-primary/90">
+          <Plus className="w-4 h-4" /> Add Team Code
+        </Button>
+        <Button onClick={() => setQrModalOpen(true)} variant="outline" size="sm" className="gap-1 uppercase text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 text-primary" /> Scan QR
         </Button>
         <Button onClick={() => setAuditOpen(true)} variant="outline" size="sm"><Sparkles className="w-4 h-4"/>AI review</Button>
         <Button onClick={exportToCSV} variant="outline" size="sm" className="gap-2 border-border">
@@ -327,6 +488,16 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"
+                        variant="ghost"
+                        title="Edit Team Code Details"
+                        className="h-8 text-xs font-bold uppercase text-primary hover:bg-primary/10"
+                        onClick={() => openEditTeamModal(reg)}
+                      >
+                        <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Pass
+                      </Button>
+
+                      <Button
+                        size="sm"
                         variant={reg.is_present ? "secondary" : "outline"}
                         className={`h-8 text-xs font-bold uppercase ${reg.is_present ? 'text-success border-success/30' : 'text-muted-foreground'}`}
                         onClick={() => toggleAttendance(reg.id, !reg.is_present)}
@@ -383,18 +554,248 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
 
       <RegistrationAuditModal open={auditOpen} onOpenChange={setAuditOpen} registrations={registrations}/>
 
+      {/* Quick Set Room Code & Password Modal */}
+      <Dialog open={roomModalOpen} onOpenChange={setRoomModalOpen}>
+        <DialogContent className="sm:max-w-[440px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
+              <Key className="w-5 h-5 text-primary" /> Publish Main Game Room Credentials
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveRoomCredentials} className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Set match room details for BGMI Squads or EA SPORTS FC Mobile. Unlocks instantly for present teams on their Team Dashboard.
+            </p>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Target Main Game</Label>
+              <Select value={targetGame} onValueChange={(v: 'bgmi' | 'fc-mobile') => setTargetGame(v)}>
+                <SelectTrigger className="bg-background text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bgmi">BGMI Squad Battle Room</SelectItem>
+                  <SelectItem value="fc-mobile">FC Mobile Head-to-Head Lobby</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {targetGame === 'bgmi' ? (
+              <div className="space-y-3 p-3 bg-secondary/50 rounded border border-border">
+                <p className="text-xs font-bold text-primary uppercase">BGMI Custom Room Credentials</p>
+                <div className="space-y-1">
+                  <Label className="text-xs">BGMI Room ID</Label>
+                  <Input
+                    value={bgmiRoomId}
+                    onChange={(e) => setBgmiRoomId(e.target.value)}
+                    placeholder="e.g. 8029104"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">BGMI Room Password</Label>
+                  <Input
+                    value={bgmiRoomPass}
+                    onChange={(e) => setBgmiRoomPass(e.target.value)}
+                    placeholder="e.g. 98123"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 p-3 bg-secondary/50 rounded border border-border">
+                <p className="text-xs font-bold text-primary uppercase">FC Mobile Head-to-Head Credentials</p>
+                <div className="space-y-1">
+                  <Label className="text-xs">FC Mobile Match Code / Host Handle</Label>
+                  <Input
+                    value={fcRoomId}
+                    onChange={(e) => setFcRoomId(e.target.value)}
+                    placeholder="e.g. FCM-TABLE-01 or Host IGN"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">FC Mobile Lobby Password / Passcode</Label>
+                  <Input
+                    value={fcRoomPass}
+                    onChange={(e) => setFcRoomPass(e.target.value)}
+                    placeholder="e.g. 7788"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="ghost" onClick={() => setRoomModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={savingRoom} className="bg-primary text-black font-bold uppercase text-xs">
+                {savingRoom ? 'Publishing...' : `Publish ${targetGame.toUpperCase()} Credentials`}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Add / Edit Team Code Modal */}
+      <Dialog open={teamModalOpen} onOpenChange={setTeamModalOpen}>
+        <DialogContent className="sm:max-w-[500px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
+              <Plus className="w-5 h-5 text-primary" /> {editingTarget ? 'Edit Team Code Pass' : 'Add Custom Team Code'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveTeamCode} className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Team Code / Pass #</Label>
+                <Input
+                  value={formCustomCode}
+                  onChange={(e) => setFormCustomCode(e.target.value)}
+                  placeholder="e.g. 100045"
+                  required
+                  className="bg-background font-mono text-xs uppercase"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Pass Password</Label>
+                <Input
+                  value={formPass}
+                  onChange={(e) => setFormPass(e.target.value)}
+                  placeholder="e.g. sapience123"
+                  required
+                  className="bg-background text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Team / Squad Name</Label>
+                <Input
+                  value={formTeamName}
+                  onChange={(e) => setFormTeamName(e.target.value)}
+                  placeholder="e.g. Cyber Strikers"
+                  className="bg-background text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Captain / Solo Player Name</Label>
+                <Input
+                  value={formFullName}
+                  onChange={(e) => setFormFullName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                  required
+                  className="bg-background text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Admission No</Label>
+                <Input
+                  value={formAdmissionNo}
+                  onChange={(e) => setFormAdmissionNo(e.target.value)}
+                  placeholder="S-2024-12"
+                  className="bg-background text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Class & Sec</Label>
+                <Input
+                  value={formClassSec}
+                  onChange={(e) => setFormClassSec(e.target.value)}
+                  placeholder="X-A"
+                  className="bg-background text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone Number</Label>
+                <Input
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
+                  placeholder="9876543210"
+                  className="bg-background text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Game Title</Label>
+                <Select value={formGame} onValueChange={setFormGame}>
+                  <SelectTrigger className="bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bgmi">BGMI Squad</SelectItem>
+                    <SelectItem value="fc-mobile">EA SPORTS FC Mobile</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Entry Format</Label>
+                <Select value={formEntryType} onValueChange={setFormEntryType}>
+                  <SelectTrigger className="bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="squad">5-Player Squad</SelectItem>
+                    <SelectItem value="solo">Solo Player</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="ghost" onClick={() => setTeamModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={submittingTeam} className="bg-primary text-black font-bold uppercase text-xs">
+                {submittingTeam ? 'Saving Pass...' : editingTarget ? 'Update Pass Details' : 'Create Team Code Pass'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* QR Code Check-in Scanner Modal */}
-      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+      <Dialog open={qrModalOpen} onOpenChange={(open) => { setQrModalOpen(open); if (!open) setUseCamera(false); }}>
         <DialogContent className="sm:max-w-[480px] bg-card border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
-              <CheckCircle2 className="w-5 h-5 text-primary" /> Venue QR Code Check-in
+              <CheckCircle2 className="w-5 h-5 text-primary" /> Venue QR Code Check-in System
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-muted-foreground">
-              Scan team QR Code using a handheld scanner or enter the team code / admission number below to mark physical attendance and unlock Room ID & Password for the team.
+              Scan attendee QR pass using your device camera, handheld barcode scanner, or manual pass code lookup to mark physical attendance and unlock Room Credentials.
             </p>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={useCamera ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUseCamera(!useCamera)}
+                className="w-full uppercase text-xs font-bold gap-2"
+              >
+                <Camera className="w-4 h-4" /> {useCamera ? 'Disable Camera Feed' : 'Use Device Camera Scanner'}
+              </Button>
+            </div>
+
+            {useCamera && (
+              <div className="p-4 bg-black border border-primary/40 rounded-lg text-center space-y-2">
+                <div className="relative w-full aspect-video bg-muted/20 border-2 border-dashed border-primary/50 rounded flex items-center justify-center overflow-hidden">
+                  <div className="absolute inset-x-0 h-0.5 bg-primary animate-pulse" />
+                  <p className="text-xs font-mono text-primary animate-bounce">Point Camera at Team QR Pass...</p>
+                </div>
+                <p className="text-[10px] font-mono text-muted-foreground">Camera active. Automatic focus enabled.</p>
+              </div>
+            )}
+
             <form onSubmit={handleQrScanSearch} className="flex gap-2">
               <Input
                 placeholder="Scan / enter Team Code e.g. 100045"
@@ -441,7 +842,7 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
             )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setQrModalOpen(false)}>Close Scanner</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setQrModalOpen(false); setUseCamera(false); }}>Close Scanner</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

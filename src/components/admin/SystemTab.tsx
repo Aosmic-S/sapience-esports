@@ -18,6 +18,10 @@ interface SystemSettings {
   trailer_video_url?: string;
   room_id?: string;
   room_password?: string;
+  bgmi_room_id?: string;
+  bgmi_room_password?: string;
+  fcmobile_room_id?: string;
+  fcmobile_room_password?: string;
 }
 
 interface BackupSettings {
@@ -52,7 +56,11 @@ const SystemTab = ({
     email_notifications: false,
     trailer_video_url: '',
     room_id: '',
-    room_password: ''
+    room_password: '',
+    bgmi_room_id: '',
+    bgmi_room_password: '',
+    fcmobile_room_id: '',
+    fcmobile_room_password: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -224,27 +232,62 @@ const SystemTab = ({
           </div>
 
           <div className="pt-2 border-t border-border space-y-3">
-            <Label className="text-foreground font-bold text-xs uppercase tracking-wider">Tournament Custom Room Credentials (Shared with Present Teams Only)</Label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Room ID / Match Link</Label>
-                <Input
-                  placeholder="e.g. 809214 or Link"
-                  value={localSettings.room_id || ''}
-                  onChange={(e) => handleSettingChange('room_id', e.target.value)}
-                  className="bg-background text-xs font-mono"
-                  disabled={isLoading}
-                />
+            <Label className="text-foreground font-bold text-xs uppercase tracking-wider">Main Games Room Credentials (Shared with Present Teams Only)</Label>
+            <div className="space-y-3 p-3 bg-card border border-border rounded-md">
+              <p className="text-xs font-bold text-primary uppercase">BGMI Squad Battle Room</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">BGMI Room ID</Label>
+                  <Input
+                    placeholder="e.g. 809214"
+                    value={localSettings.bgmi_room_id || localSettings.room_id || ''}
+                    onChange={(e) => {
+                      handleSettingChange('bgmi_room_id', e.target.value);
+                      handleSettingChange('room_id', e.target.value);
+                    }}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">BGMI Room Password</Label>
+                  <Input
+                    placeholder="e.g. 12345"
+                    value={localSettings.bgmi_room_password || localSettings.room_password || ''}
+                    onChange={(e) => {
+                      handleSettingChange('bgmi_room_password', e.target.value);
+                      handleSettingChange('room_password', e.target.value);
+                    }}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Room Password</Label>
-                <Input
-                  placeholder="e.g. 12345"
-                  value={localSettings.room_password || ''}
-                  onChange={(e) => handleSettingChange('room_password', e.target.value)}
-                  className="bg-background text-xs font-mono"
-                  disabled={isLoading}
-                />
+            </div>
+
+            <div className="space-y-3 p-3 bg-card border border-border rounded-md">
+              <p className="text-xs font-bold text-primary uppercase">FC Mobile Head-to-Head Lobby</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">FC Mobile Code / Host</Label>
+                  <Input
+                    placeholder="e.g. FCM-LOBBY-01"
+                    value={localSettings.fcmobile_room_id || ''}
+                    onChange={(e) => handleSettingChange('fcmobile_room_id', e.target.value)}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">FC Mobile Password</Label>
+                  <Input
+                    placeholder="e.g. 9988"
+                    value={localSettings.fcmobile_room_password || ''}
+                    onChange={(e) => handleSettingChange('fcmobile_room_password', e.target.value)}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
             </div>
           </div>
