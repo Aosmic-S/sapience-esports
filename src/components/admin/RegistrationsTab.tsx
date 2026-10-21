@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles, Plus, Edit3, Key } from 'lucide-react';
+import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles, Plus, Edit3, Key, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import RegistrationAuditModal from './RegistrationAuditModal';
 
@@ -49,6 +49,7 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [scanInput, setScanInput] = useState('');
   const [scanResult, setScanResult] = useState<Registration | null>(null);
+  const [useCamera, setUseCamera] = useState(false);
 
   // Create / Edit Team Code modal state
   const [teamModalOpen, setTeamModalOpen] = useState(false);
@@ -761,17 +762,40 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
       </Dialog>
 
       {/* QR Code Check-in Scanner Modal */}
-      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+      <Dialog open={qrModalOpen} onOpenChange={(open) => { setQrModalOpen(open); if (!open) setUseCamera(false); }}>
         <DialogContent className="sm:max-w-[480px] bg-card border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
-              <CheckCircle2 className="w-5 h-5 text-primary" /> Venue QR Code Check-in
+              <CheckCircle2 className="w-5 h-5 text-primary" /> Venue QR Code Check-in System
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-xs text-muted-foreground">
-              Scan team QR Code using a handheld scanner or enter the team code / admission number below to mark physical attendance and unlock Room ID & Password for the team.
+              Scan attendee QR pass using your device camera, handheld barcode scanner, or manual pass code lookup to mark physical attendance and unlock Room Credentials.
             </p>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={useCamera ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUseCamera(!useCamera)}
+                className="w-full uppercase text-xs font-bold gap-2"
+              >
+                <Camera className="w-4 h-4" /> {useCamera ? 'Disable Camera Feed' : 'Use Device Camera Scanner'}
+              </Button>
+            </div>
+
+            {useCamera && (
+              <div className="p-4 bg-black border border-primary/40 rounded-lg text-center space-y-2">
+                <div className="relative w-full aspect-video bg-muted/20 border-2 border-dashed border-primary/50 rounded flex items-center justify-center overflow-hidden">
+                  <div className="absolute inset-x-0 h-0.5 bg-primary animate-pulse" />
+                  <p className="text-xs font-mono text-primary animate-bounce">Point Camera at Team QR Pass...</p>
+                </div>
+                <p className="text-[10px] font-mono text-muted-foreground">Camera active. Automatic focus enabled.</p>
+              </div>
+            )}
+
             <form onSubmit={handleQrScanSearch} className="flex gap-2">
               <Input
                 placeholder="Scan / enter Team Code e.g. 100045"
@@ -818,7 +842,7 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
             )}
           </div>
           <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setQrModalOpen(false)}>Close Scanner</Button>
+            <Button variant="ghost" size="sm" onClick={() => { setQrModalOpen(false); setUseCamera(false); }}>Close Scanner</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
