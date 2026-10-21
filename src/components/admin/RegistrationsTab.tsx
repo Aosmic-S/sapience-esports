@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles, Plus, Edit3 } from 'lucide-react';
+import { Trash2, Download, Ban, CheckCircle2, XCircle, AlertTriangle, Search, Sparkles, Plus, Edit3, Key } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import RegistrationAuditModal from './RegistrationAuditModal';
 
@@ -54,6 +54,15 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [editingTarget, setEditingTarget] = useState<Registration | null>(null);
   const [formCustomCode, setFormCustomCode] = useState('');
+
+  // Quick Room Code Modal state
+  const [roomModalOpen, setRoomModalOpen] = useState(false);
+  const [targetGame, setTargetGame] = useState<'bgmi' | 'fc-mobile'>('bgmi');
+  const [bgmiRoomId, setBgmiRoomId] = useState('');
+  const [bgmiRoomPass, setBgmiRoomPass] = useState('');
+  const [fcRoomId, setFcRoomId] = useState('');
+  const [fcRoomPass, setFcRoomPass] = useState('');
+  const [savingRoom, setSavingRoom] = useState(false);
   const [formTeamName, setFormTeamName] = useState('');
   const [formFullName, setFormFullName] = useState('');
   const [formAdmissionNo, setFormAdmissionNo] = useState('');
@@ -122,6 +131,58 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
     setScanResult(null);
     setScanInput('');
     setQrModalOpen(false);
+  };
+
+  const openRoomModal = async () => {
+    try {
+      const { data } = await supabase.from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
+      if (data) {
+        setBgmiRoomId(data.bgmi_room_id || data.room_id || '');
+        setBgmiRoomPass(data.bgmi_room_password || data.room_password || '');
+        setFcRoomId(data.fcmobile_room_id || data.room_id || '');
+        setFcRoomPass(data.fcmobile_room_password || data.room_password || '');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setRoomModalOpen(true);
+  };
+
+  const saveRoomCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingRoom(true);
+    try {
+      const activeId = targetGame === 'bgmi' ? bgmiRoomId.trim() : fcRoomId.trim();
+      const activePass = targetGame === 'bgmi' ? bgmiRoomPass.trim() : fcRoomPass.trim();
+
+      let { error } = await supabase.from('system_settings').update({
+        bgmi_room_id: bgmiRoomId.trim(),
+        bgmi_room_password: bgmiRoomPass.trim(),
+        fcmobile_room_id: fcRoomId.trim(),
+        fcmobile_room_password: fcRoomPass.trim(),
+        room_id: activeId,
+        room_password: activePass,
+        updated_at: new Date().toISOString()
+      } as any).eq('id', 1);
+
+      if (error) {
+        // Fallback to base room_id if new columns not present yet
+        const fallback = await supabase.from('system_settings').update({
+          room_id: activeId,
+          room_password: activePass,
+          updated_at: new Date().toISOString()
+        }).eq('id', 1);
+        error = fallback.error;
+      }
+
+      if (error) throw error;
+      toast({ title: `${targetGame.toUpperCase()} Room Credentials Published`, description: `ID: ${activeId} | Pass: ${activePass}` });
+      setRoomModalOpen(false);
+    } catch (err: any) {
+      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingRoom(false);
+    }
   };
 
   const openCreateTeamModal = () => {
@@ -328,6 +389,9 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
           </Select>
         </div>
 
+        <Button onClick={openRoomModal} variant="outline" size="sm" className="gap-1 uppercase text-xs font-bold border-primary/50 text-primary hover:bg-primary/10">
+          <Key className="w-4 h-4" /> Set Room Code
+        </Button>
         <Button onClick={openCreateTeamModal} variant="default" size="sm" className="gap-1 uppercase text-xs font-bold bg-primary text-black hover:bg-primary/90">
           <Plus className="w-4 h-4" /> Add Team Code
         </Button>
@@ -488,6 +552,92 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
       </div>
 
       <RegistrationAuditModal open={auditOpen} onOpenChange={setAuditOpen} registrations={registrations}/>
+
+      {/* Quick Set Room Code & Password Modal */}
+      <Dialog open={roomModalOpen} onOpenChange={setRoomModalOpen}>
+        <DialogContent className="sm:max-w-[440px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
+              <Key className="w-5 h-5 text-primary" /> Publish Main Game Room Credentials
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveRoomCredentials} className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Set match room details for BGMI Squads or EA SPORTS FC Mobile. Unlocks instantly for present teams on their Team Dashboard.
+            </p>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-muted-foreground">Target Main Game</Label>
+              <Select value={targetGame} onValueChange={(v: 'bgmi' | 'fc-mobile') => setTargetGame(v)}>
+                <SelectTrigger className="bg-background text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bgmi">BGMI Squad Battle Room</SelectItem>
+                  <SelectItem value="fc-mobile">FC Mobile Head-to-Head Lobby</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {targetGame === 'bgmi' ? (
+              <div className="space-y-3 p-3 bg-secondary/50 rounded border border-border">
+                <p className="text-xs font-bold text-primary uppercase">BGMI Custom Room Credentials</p>
+                <div className="space-y-1">
+                  <Label className="text-xs">BGMI Room ID</Label>
+                  <Input
+                    value={bgmiRoomId}
+                    onChange={(e) => setBgmiRoomId(e.target.value)}
+                    placeholder="e.g. 8029104"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">BGMI Room Password</Label>
+                  <Input
+                    value={bgmiRoomPass}
+                    onChange={(e) => setBgmiRoomPass(e.target.value)}
+                    placeholder="e.g. 98123"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 p-3 bg-secondary/50 rounded border border-border">
+                <p className="text-xs font-bold text-primary uppercase">FC Mobile Head-to-Head Credentials</p>
+                <div className="space-y-1">
+                  <Label className="text-xs">FC Mobile Match Code / Host Handle</Label>
+                  <Input
+                    value={fcRoomId}
+                    onChange={(e) => setFcRoomId(e.target.value)}
+                    placeholder="e.g. FCM-TABLE-01 or Host IGN"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">FC Mobile Lobby Password / Passcode</Label>
+                  <Input
+                    value={fcRoomPass}
+                    onChange={(e) => setFcRoomPass(e.target.value)}
+                    placeholder="e.g. 7788"
+                    required
+                    className="bg-background text-xs font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="ghost" onClick={() => setRoomModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={savingRoom} className="bg-primary text-black font-bold uppercase text-xs">
+                {savingRoom ? 'Publishing...' : `Publish ${targetGame.toUpperCase()} Credentials`}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Admin Add / Edit Team Code Modal */}
       <Dialog open={teamModalOpen} onOpenChange={setTeamModalOpen}>

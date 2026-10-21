@@ -78,7 +78,7 @@ export default function TeamDashboard() {
   const { data: systemSettings } = useQuery({
     queryKey: ['systemSettingsRoomDetails'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('system_settings').select('room_id, room_password').eq('id', 1).maybeSingle();
+      const { data, error } = await supabase.from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
       if (error && error.code !== 'PGRST116') return null;
       return data;
     }
@@ -201,6 +201,15 @@ export default function TeamDashboard() {
   const currentStatus = teamDetails?.status || teamSession.status || 'active';
   const dqReason = teamDetails?.dq_reason || teamSession.dqReason;
 
+  // Active game-specific room credentials
+  const activeRoomId = isBGMI
+    ? (systemSettings?.bgmi_room_id || systemSettings?.room_id)
+    : (systemSettings?.fcmobile_room_id || systemSettings?.room_id);
+
+  const activeRoomPass = isBGMI
+    ? (systemSettings?.bgmi_room_password || systemSettings?.room_password)
+    : (systemSettings?.fcmobile_room_password || systemSettings?.room_password);
+
   return (
     <div className="min-h-[calc(100vh-76px)] bg-background text-foreground py-8 px-4 sm:px-6">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -318,21 +327,48 @@ export default function TeamDashboard() {
             <CardContent className="p-5 pt-0 space-y-4">
               {teamDetails?.is_present ? (
                 <div className="p-4 bg-success/10 border border-success/30 rounded-lg space-y-3">
-                  <p className="text-xs font-bold text-success uppercase flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> Attendance Verified — Room Pass Unlocked
+                  <p className="text-xs font-bold text-success uppercase flex items-center justify-between">
+                    <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Attendance Verified — Room Pass Unlocked</span>
+                    <Badge className="bg-success text-black font-mono text-[9px] uppercase">MATCH READY</Badge>
                   </p>
                   <div className="grid sm:grid-cols-2 gap-4 pt-1 text-xs">
-                    <div className="p-3 bg-background border border-border rounded">
-                      <p className="text-muted-foreground uppercase text-[10px] font-bold">{isBGMI ? 'Custom Room ID' : 'Lobby Code'}</p>
-                      <p className="font-mono font-bold text-primary text-base mt-1 select-all">
-                        {systemSettings?.room_id || 'NOT_SET_YET'}
-                      </p>
+                    <div className="p-3 bg-background border border-border rounded flex justify-between items-center">
+                      <div>
+                        <p className="text-muted-foreground uppercase text-[10px] font-bold">{isBGMI ? 'BGMI Custom Room ID' : 'FC Mobile Match Code'}</p>
+                        <p className="font-mono font-bold text-primary text-base mt-0.5 select-all">
+                          {activeRoomId || 'PENDING_HOST'}
+                        </p>
+                      </div>
+                      {activeRoomId && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeRoomId);
+                            toast({ title: `${isBGMI ? 'BGMI Room ID' : 'FC Mobile Code'} Copied!`, description: activeRoomId });
+                          }}
+                          className="px-2 py-1 bg-secondary text-primary hover:bg-primary/20 rounded font-mono text-[10px] uppercase font-bold"
+                        >
+                          Copy
+                        </button>
+                      )}
                     </div>
-                    <div className="p-3 bg-background border border-border rounded">
-                      <p className="text-muted-foreground uppercase text-[10px] font-bold">Room Password</p>
-                      <p className="font-mono font-bold text-foreground text-base mt-1 select-all">
-                        {systemSettings?.room_password || 'NOT_SET_YET'}
-                      </p>
+                    <div className="p-3 bg-background border border-border rounded flex justify-between items-center">
+                      <div>
+                        <p className="text-muted-foreground uppercase text-[10px] font-bold">{isBGMI ? 'Room Password' : 'Lobby Password'}</p>
+                        <p className="font-mono font-bold text-foreground text-base mt-0.5 select-all">
+                          {activeRoomPass || 'PENDING_HOST'}
+                        </p>
+                      </div>
+                      {activeRoomPass && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeRoomPass);
+                            toast({ title: "Password Copied!", description: activeRoomPass });
+                          }}
+                          className="px-2 py-1 bg-secondary text-foreground hover:bg-muted rounded font-mono text-[10px] uppercase font-bold"
+                        >
+                          Copy
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
