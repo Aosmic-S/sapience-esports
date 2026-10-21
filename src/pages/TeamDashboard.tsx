@@ -39,45 +39,78 @@ export default function TeamDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const session = sessionStorage.getItem('teamSession');
-    if (!session) {
-      navigate('/team-login');
-      return;
+    try {
+      const session = sessionStorage.getItem('teamSession');
+      if (!session) {
+        navigate('/team-login', { replace: true });
+        return;
+      }
+      const parsed = JSON.parse(session);
+      if (!parsed || !parsed.teamNumber) {
+        sessionStorage.removeItem('teamSession');
+        navigate('/team-login', { replace: true });
+        return;
+      }
+      setTeamSession(parsed);
+    } catch {
+      sessionStorage.removeItem('teamSession');
+      navigate('/team-login', { replace: true });
     }
-    setTeamSession(JSON.parse(session));
   }, [navigate]);
 
   // Fetch full registration details for real-time status & DQ check
   const { data: teamDetails } = useQuery({
     queryKey: ['teamDetails', teamSession?.teamNumber],
     queryFn: async () => {
-      if (!teamSession) return null;
+      if (!teamSession?.teamNumber) return null;
       const { data, error } = await supabase
         .from('registrations')
         .select('*')
-        .eq('team_number', teamSession.teamNumber)
+        .ilike('team_number', teamSession.teamNumber)
         .maybeSingle();
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
-    enabled: !!teamSession
+    enabled: !!teamSession?.teamNumber
   });
 
   // Fetch 5-player Krafton Roster if BGMI
   const { data: roster = [] } = useQuery({
-    queryKey: ['teamRosterMembers', teamSession?.teamNumber],
+    queryKey: ['teamRosterMembers', teamSession?.teamNumber, teamDetails?.id],
     queryFn: async () => {
       if (!teamSession) return [];
-      const { data, error } = await supabase
+      const { data: members, error } = await supabase
         .from('team_members')
         .select('*')
         .eq('team_number', teamSession.teamNumber)
         .order('slot');
+
       if (error) {
         console.error('Error fetching roster:', error);
-        return [];
       }
-      return data || [];
+
+      const list = members || [];
+      const hasSlot1 = list.some((m: any) => m.slot === 1);
+
+      // Include captain at slot 1 if not present in team_members
+      if (!hasSlot1 && teamDetails && teamDetails.game === 'bgmi') {
+        const captainSlot = {
+          id: teamDetails.id,
+          team_number: teamDetails.team_number,
+          full_name: teamDetails.full_name,
+          admission_no: teamDetails.admission_no || '',
+          class_section: teamDetails.class_section,
+          in_game_id: teamDetails.in_game_id || teamDetails.full_name,
+          uid: teamDetails.uid || 'N/A',
+          phone_number: teamDetails.phone_number,
+          role: 'IGL',
+          player_rank: teamDetails.player_rank,
+          slot: 1
+        };
+        return [captainSlot, ...list].sort((a, b) => a.slot - b.slot);
+      }
+
+      return list;
     },
     enabled: !!teamSession && teamSession?.game === 'bgmi'
   });

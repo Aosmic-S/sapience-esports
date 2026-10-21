@@ -18,6 +18,8 @@ import Brackets from "./pages/Brackets";
 import PlayerLogin from "./pages/PlayerLogin";
 import PlayerProfile from "./pages/PlayerProfile";
 import ResetPassword from "./pages/ResetPassword";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsAndConditions from "./pages/TermsAndConditions";
 import { SiteFooter } from './components/SiteFooter';
 
 const queryClient = new QueryClient();
@@ -43,6 +45,8 @@ const App = () => (
           <Route path="/team-dashboard" element={<TeamDashboard />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/brackets" element={<Brackets />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         <SiteFooter />
