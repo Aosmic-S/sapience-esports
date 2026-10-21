@@ -79,7 +79,6 @@ export default function HomeTrailer() {
           autoPlay
           loop
           muted
-          controls
           playsInline
           preload="auto"
           poster={poster.url}

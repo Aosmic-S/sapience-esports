@@ -27,6 +27,7 @@ export interface Registration {
   members?: string[];
   status?: 'active' | 'eliminated' | 'disqualified' | string;
   dq_reason?: string;
+  is_present?: boolean;
 }
 
 interface RegistrationsTabProps {
@@ -43,6 +44,11 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
   const [auditOpen, setAuditOpen] = useState(false);
   const [dqTarget, setDqTarget] = useState<Registration | null>(null);
   const [dqReason, setDqReason] = useState('Emulator / Unauthorized hardware');
+
+  // QR Check-in scanner modal state
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const [scanResult, setScanResult] = useState<Registration | null>(null);
 
   useEffect(() => {
     let filtered = [...registrations];
@@ -69,6 +75,40 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
 
     setFilteredRegistrations(filtered);
   }, [registrations, filters, search]);
+
+  const toggleAttendance = async (id: string, isPresent: boolean) => {
+    const { error } = await supabase.from('registrations').update({ is_present: isPresent } as any).eq('id', id);
+    if (error) {
+      toast({ title: "Attendance Update Failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: isPresent ? "Team Marked PRESENT" : "Team Marked ABSENT", description: "Attendance updated." });
+      onRegistrationsChange();
+    }
+  };
+
+  const handleQrScanSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const query = scanInput.trim().toLowerCase();
+    if (!query) return;
+    const match = registrations.find(r =>
+      r.team_number?.toLowerCase() === query ||
+      r.admission_no?.toLowerCase() === query ||
+      r.id.toLowerCase() === query
+    );
+    if (match) {
+      setScanResult(match);
+    } else {
+      toast({ title: "Pass Not Found", description: `No team pass matching ${scanInput}`, variant: "destructive" });
+      setScanResult(null);
+    }
+  };
+
+  const confirmQrCheckIn = async (match: Registration) => {
+    await toggleAttendance(match.id, true);
+    setScanResult(null);
+    setScanInput('');
+    setQrModalOpen(false);
+  };
 
   const updateTeamStatus = async (id: string, status: 'active' | 'eliminated' | 'disqualified', reason?: string) => {
     const payload = { status, dq_reason: status === 'disqualified' ? reason || 'Rule violation' : null };
@@ -195,6 +235,9 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
           </Select>
         </div>
 
+        <Button onClick={() => setQrModalOpen(true)} variant="default" size="sm" className="gap-2 uppercase text-xs font-bold bg-primary text-black hover:bg-primary/90">
+          <CheckCircle2 className="w-4 h-4" /> Scan / Check-in QR
+        </Button>
         <Button onClick={() => setAuditOpen(true)} variant="outline" size="sm"><Sparkles className="w-4 h-4"/>AI review</Button>
         <Button onClick={exportToCSV} variant="outline" size="sm" className="gap-2 border-border">
           <Download className="w-4 h-4" /> Export CSV
@@ -248,7 +291,16 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
                         )}
                         {(!reg.status || reg.status === 'active') && (
                           <Badge variant="outline" className="text-success border-success/40 uppercase font-mono text-[10px] gap-1">
-                            <CheckCircle2 className="w-3 h-3" /> Active
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                          </Badge>
+                        )}
+                        {reg.is_present ? (
+                          <Badge className="bg-success/20 text-success border-success/40 font-mono text-[10px] uppercase gap-1">
+                            Present
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="font-mono text-[10px] uppercase gap-1 opacity-60">
+                            Absent
                           </Badge>
                         )}
                         <Badge variant="secondary" className="uppercase font-mono text-[10px]">
@@ -271,8 +323,17 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
                       )}
                     </div>
 
-                    {/* Quick Management Buttons */}
+                    {/* Attendance Toggle & Quick Management Buttons */}
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={reg.is_present ? "secondary" : "outline"}
+                        className={`h-8 text-xs font-bold uppercase ${reg.is_present ? 'text-success border-success/30' : 'text-muted-foreground'}`}
+                        onClick={() => toggleAttendance(reg.id, !reg.is_present)}
+                      >
+                        {reg.is_present ? 'Mark Absent' : 'Mark Present'}
+                      </Button>
+
                       {isDQ || isEliminated ? (
                         <Button 
                           size="sm" 
@@ -321,6 +382,69 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
       </div>
 
       <RegistrationAuditModal open={auditOpen} onOpenChange={setAuditOpen} registrations={registrations}/>
+
+      {/* QR Code Check-in Scanner Modal */}
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="sm:max-w-[480px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary font-display text-lg uppercase">
+              <CheckCircle2 className="w-5 h-5 text-primary" /> Venue QR Code Check-in
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Scan team QR Code using a handheld scanner or enter the team code / admission number below to mark physical attendance and unlock Room ID & Password for the team.
+            </p>
+            <form onSubmit={handleQrScanSearch} className="flex gap-2">
+              <Input
+                placeholder="Scan / enter Team Code e.g. 100045"
+                value={scanInput}
+                onChange={(e) => setScanInput(e.target.value)}
+                autoFocus
+                className="bg-background text-xs font-mono uppercase"
+              />
+              <Button type="submit" size="sm" variant="default" className="uppercase text-xs font-bold shrink-0">
+                Lookup Pass
+              </Button>
+            </form>
+
+            {scanResult && (
+              <div className="p-4 bg-secondary/80 border border-border rounded-lg space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <Badge variant="outline" className="font-mono text-[10px] text-primary border-primary/40 uppercase">
+                      {scanResult.game.toUpperCase()}
+                    </Badge>
+                    <h4 className="font-bold text-sm text-foreground mt-1">{scanResult.team_name || scanResult.full_name}</h4>
+                    <p className="text-xs font-mono text-muted-foreground">Pass #: {scanResult.team_number}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Captain: {scanResult.full_name} ({scanResult.admission_no || 'N/A'})</p>
+                  </div>
+                  {scanResult.is_present ? (
+                    <Badge className="bg-success/20 text-success border-success/40 uppercase font-mono text-[10px]">
+                      Already Present
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="uppercase font-mono text-[10px]">
+                      Pending Check-in
+                    </Badge>
+                  )}
+                </div>
+
+                <Button
+                  onClick={() => confirmQrCheckIn(scanResult)}
+                  size="sm"
+                  className="w-full bg-success text-white hover:bg-success/90 font-bold uppercase text-xs"
+                >
+                  Confirm Venue Attendance & Unlock Room Pass
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setQrModalOpen(false)}>Close Scanner</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Disqualification Reason Modal */}
       <Dialog open={!!dqTarget} onOpenChange={(open) => !open && setDqTarget(null)}>
         <DialogContent className="sm:max-w-[440px] bg-card border-border">
