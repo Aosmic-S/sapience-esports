@@ -16,6 +16,8 @@ interface SystemSettings {
   auto_approval: boolean;
   email_notifications: boolean;
   trailer_video_url?: string;
+  room_id?: string;
+  room_password?: string;
 }
 
 interface BackupSettings {
@@ -48,7 +50,9 @@ const SystemTab = ({
     max_participants: 100,
     auto_approval: true,
     email_notifications: false,
-    trailer_video_url: ''
+    trailer_video_url: '',
+    room_id: '',
+    room_password: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -217,6 +221,32 @@ const SystemTab = ({
               onCheckedChange={(checked) => handleSettingChange('registration_open', checked)}
               disabled={isLoading}
             />
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-3">
+            <Label className="text-foreground font-bold text-xs uppercase tracking-wider">Tournament Custom Room Credentials (Shared with Present Teams Only)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Room ID / Match Link</Label>
+                <Input
+                  placeholder="e.g. 809214 or Link"
+                  value={localSettings.room_id || ''}
+                  onChange={(e) => handleSettingChange('room_id', e.target.value)}
+                  className="bg-background text-xs font-mono"
+                  disabled={isLoading}
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Room Password</Label>
+                <Input
+                  placeholder="e.g. 12345"
+                  value={localSettings.room_password || ''}
+                  onChange={(e) => handleSettingChange('room_password', e.target.value)}
+                  className="bg-background text-xs font-mono"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
           </div>
 
           <div>
