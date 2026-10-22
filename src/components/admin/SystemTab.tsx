@@ -15,6 +15,13 @@ interface SystemSettings {
   max_participants: number;
   auto_approval: boolean;
   email_notifications: boolean;
+  trailer_video_url?: string;
+  room_id?: string;
+  room_password?: string;
+  bgmi_room_id?: string;
+  bgmi_room_password?: string;
+  fcmobile_room_id?: string;
+  fcmobile_room_password?: string;
 }
 
 interface BackupSettings {
@@ -46,13 +53,26 @@ const SystemTab = ({
     registration_open: true,
     max_participants: 100,
     auto_approval: true,
-    email_notifications: false
+    email_notifications: false,
+    trailer_video_url: '',
+    room_id: '',
+    room_password: '',
+    bgmi_room_id: '',
+    bgmi_room_password: '',
+    fcmobile_room_id: '',
+    fcmobile_room_password: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    const localVideoUrl = typeof window !== 'undefined' ? localStorage.getItem('sapience_trailer_video_url') : null;
     if (systemSettings) {
-      setLocalSettings(systemSettings);
+      setLocalSettings({
+        ...systemSettings,
+        trailer_video_url: systemSettings.trailer_video_url || localVideoUrl || ''
+      });
+    } else if (localVideoUrl) {
+      setLocalSettings(prev => ({ ...prev, trailer_video_url: localVideoUrl }));
     }
   }, [systemSettings]);
 
@@ -71,6 +91,7 @@ const SystemTab = ({
           max_participants: localSettings.max_participants,
           auto_approval: localSettings.auto_approval,
           email_notifications: localSettings.email_notifications,
+          trailer_video_url: localSettings.trailer_video_url || '',
           updated_at: new Date().toISOString()
         }]);
 
@@ -101,21 +122,42 @@ const SystemTab = ({
     setIsLoading(true);
     
     try {
+      if (typeof window !== 'undefined' && localSettings.trailer_video_url !== undefined) {
+        localStorage.setItem('sapience_trailer_video_url', localSettings.trailer_video_url || '');
+      }
+
       if (!systemSettings) {
         await createInitialSettings();
         return;
       }
 
-      const { error } = await supabase
+      // First attempt update including trailer_video_url
+      let { error } = await supabase
         .from('system_settings')
         .update({
           registration_open: localSettings.registration_open,
           max_participants: localSettings.max_participants,
           auto_approval: localSettings.auto_approval,
           email_notifications: localSettings.email_notifications,
+          trailer_video_url: localSettings.trailer_video_url || '',
           updated_at: new Date().toISOString()
-        })
+        } as any)
         .eq('id', systemSettings.id || 1);
+
+      // If trailer_video_url column doesn't exist on remote schema yet, fallback to base settings update
+      if (error && error.message?.includes('trailer_video_url')) {
+        const fallback = await supabase
+          .from('system_settings')
+          .update({
+            registration_open: localSettings.registration_open,
+            max_participants: localSettings.max_participants,
+            auto_approval: localSettings.auto_approval,
+            email_notifications: localSettings.email_notifications,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', systemSettings.id || 1);
+        error = fallback.error;
+      }
 
       if (error) {
         console.error('Error updating settings:', error);
@@ -185,6 +227,79 @@ const SystemTab = ({
             <Switch
               checked={localSettings.registration_open}
               onCheckedChange={(checked) => handleSettingChange('registration_open', checked)}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="pt-2 border-t border-border space-y-3">
+            <Label className="text-foreground font-bold text-xs uppercase tracking-wider">Main Games Room Credentials (Shared with Present Teams Only)</Label>
+            <div className="space-y-3 p-3 bg-card border border-border rounded-md">
+              <p className="text-xs font-bold text-primary uppercase">BGMI Squad Battle Room</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">BGMI Room ID</Label>
+                  <Input
+                    placeholder="e.g. 809214"
+                    value={localSettings.bgmi_room_id || localSettings.room_id || ''}
+                    onChange={(e) => {
+                      handleSettingChange('bgmi_room_id', e.target.value);
+                      handleSettingChange('room_id', e.target.value);
+                    }}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">BGMI Room Password</Label>
+                  <Input
+                    placeholder="e.g. 12345"
+                    value={localSettings.bgmi_room_password || localSettings.room_password || ''}
+                    onChange={(e) => {
+                      handleSettingChange('bgmi_room_password', e.target.value);
+                      handleSettingChange('room_password', e.target.value);
+                    }}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 p-3 bg-card border border-border rounded-md">
+              <p className="text-xs font-bold text-primary uppercase">FC Mobile Head-to-Head Lobby</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">FC Mobile Code / Host</Label>
+                  <Input
+                    placeholder="e.g. FCM-LOBBY-01"
+                    value={localSettings.fcmobile_room_id || ''}
+                    onChange={(e) => handleSettingChange('fcmobile_room_id', e.target.value)}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-muted-foreground">FC Mobile Password</Label>
+                  <Input
+                    placeholder="e.g. 9988"
+                    value={localSettings.fcmobile_room_password || ''}
+                    onChange={(e) => handleSettingChange('fcmobile_room_password', e.target.value)}
+                    className="bg-background text-xs font-mono"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-muted-foreground">Homepage Trailer Video URL (MP4 / WebM)</Label>
+            <Input
+              type="url"
+              placeholder="e.g. https://your-cdn-or-supabase.com/trailer.mp4"
+              value={localSettings.trailer_video_url || ''}
+              onChange={(e) => handleSettingChange('trailer_video_url', e.target.value)}
+              className="bg-secondary border-border text-foreground mt-1 font-mono text-xs"
               disabled={isLoading}
             />
           </div>
