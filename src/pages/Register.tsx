@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Copy, Check, Users, UserRound, AlertCircle } from 'lucide-react';
+import { ArrowRight, Copy, Check, Users, UserRound, AlertCircle, Upload, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePlayer } from '@/hooks/usePlayer';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,10 @@ export default function Register() {
   const [verified, setVerified] = useState<{ name: string; count: number; code: string } | null>(null);
   const [checking, setChecking] = useState(false);
   const [fields, setFields] = useState({ full_name: '', admission_no: '', class_section: '', phone_number: '', in_game_id: '', uid: '', team_name: '', password: '', role: 'Fragger', player_rank: 'Crown', player_level: '', team_ovr: '', fcDivision: 'Legendary' });
+  const [paidInCash, setPaidInCash] = useState(false);
+  const [cashPlayerNames, setCashPlayerNames] = useState('');
+  const [paymentFile, setPaymentFile] = useState<File | null>(null);
+  const [paymentFileUploading, setPaymentFileUploading] = useState(false);
   const update = (key: keyof typeof fields, value: string) => setFields(previous => ({ ...previous, [key]: value }));
   const { data: settings, isLoading, error: settingsError } = useQuery({ queryKey: ['registrationAdmissionStatus'], queryFn: async () => { const { data, error } = await supabase.from('system_settings').select('registration_open').eq('id', 1).single(); if (error) throw error; return data; } });
   const closed = settings?.registration_open !== true;
@@ -69,14 +73,56 @@ export default function Register() {
     if (joining && (!verified || verified.code !== code.trim().toUpperCase())) { setError('Check your squad code first.'); return; }
     setBusy(true);
     try {
-      const payload = { ...fields, full_name: fields.full_name.trim(), admission_no: fields.admission_no.trim(), class_section: fields.class_section.trim(), phone_number: fields.phone_number.trim(), uid: fields.uid.trim(), in_game_id: fields.in_game_id.trim(), game, mode: bgmi ? mode : 'solo', team_code: joining ? verified?.code : '', role: bgmi && !joining ? 'IGL' : fields.role, player_rank: bgmi ? fields.player_rank : fields.fcDivision, player_level: bgmi ? fields.player_level : '', team_ovr: bgmi ? '' : fields.team_ovr };
+      let uploadedProofPath = '';
+      if (paymentFile && !paidInCash) {
+        setPaymentFileUploading(true);
+        const path = `${user.id}/fee-proof-${Date.now()}.${paymentFile.name.split('.').pop() || 'png'}`;
+        const { error: uploadErr } = await supabase.storage.from('payment-proofs').upload(path, paymentFile);
+        if (!uploadErr) {
+          uploadedProofPath = path;
+        }
+      }
+
+      const payload = {
+        ...fields,
+        full_name: fields.full_name.trim(),
+        admission_no: fields.admission_no.trim(),
+        class_section: fields.class_section.trim(),
+        phone_number: fields.phone_number.trim(),
+        uid: fields.uid.trim(),
+        in_game_id: fields.in_game_id.trim(),
+        game,
+        mode: bgmi ? mode : 'solo',
+        team_code: joining ? verified?.code : '',
+        role: bgmi && !joining ? 'IGL' : fields.role,
+        player_rank: bgmi ? fields.player_rank : fields.fcDivision,
+        player_level: bgmi ? fields.player_level : '',
+        team_ovr: bgmi ? '' : fields.team_ovr
+      };
+
       const { data, error } = await supabase.rpc('register_player_entry', { payload });
       if (error) throw error;
       if (!data) throw new Error('No entry code returned. Please contact the tournament desk.');
+
+      // Save payment details / proof path to database record
+      if (uploadedProofPath || paidInCash) {
+        await supabase.from('registrations').update({
+          payment_proof_url: uploadedProofPath || (paidInCash ? 'paid_in_cash' : null),
+          payment_status: paidInCash ? 'verified' : 'pending'
+        }).eq('team_number', data);
+
+        if (paidInCash && cashPlayerNames.trim()) {
+          // Store cash payment note / real names in team profile / member note if applicable
+          await supabase.from('registrations').update({
+            dq_reason: `Cash payment in school for real players: ${cashPlayerNames.trim()}`
+          }).eq('team_number', data).is('dq_reason', null);
+        }
+      }
+
       setResult(data); update('password', '');
       void queryClient.invalidateQueries({ queryKey: ['playerOwnEntries', user.id] });
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to register. Try again.'); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setPaymentFileUploading(false); }
   };
   const field = (key: keyof typeof fields, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => <div className="space-y-2"><Label htmlFor={key}>{label}</Label><Input id={key} value={fields[key]} onChange={event => update(key, event.target.value)} required maxLength={100} {...props}/></div>;
   return <main className="container px-5 max-w-6xl py-10 md:py-14">
@@ -96,6 +142,69 @@ export default function Register() {
           <section className="registration-section"><h2 className="text-lg font-bold mb-5">Student details</h2><div className="grid sm:grid-cols-2 gap-5">{field('full_name', 'Full name', { autoComplete: 'name', minLength: 2 })}{field('admission_no', 'Admission number', { minLength: 2, maxLength: 50 })}{field('class_section', 'Class & section', { placeholder: '10-A', pattern: '(9|10|11|12)([^0-9].*)?', title: 'Class 9, 10, 11 or 12 with your section' })}{field('phone_number', 'Contact / WhatsApp number', { type: 'tel', autoComplete: 'tel', pattern: '[0-9+ ()\\-]{7,20}', maxLength: 20 })}</div></section>
           <section className="registration-section"><h2 className="text-lg font-bold mb-5">Game profile</h2><div className="grid sm:grid-cols-2 gap-5">{field('in_game_id', 'In-game name', { minLength: 2, maxLength: 60 })}{field('uid', 'In-game UID', { minLength: 3, maxLength: 60 })}<div className="space-y-2"><Label htmlFor="rank">{bgmi ? 'Current rank' : 'H2H division'}</Label><Select value={bgmi ? fields.player_rank : fields.fcDivision} onValueChange={value => update(bgmi ? 'player_rank' : 'fcDivision', value)}><SelectTrigger id="rank"><SelectValue/></SelectTrigger><SelectContent>{(bgmi ? ranks : divisions).map(rank => <SelectItem value={rank} key={rank}>{rank}</SelectItem>)}</SelectContent></Select></div>{bgmi ? field('player_level', 'Player level', { type: 'number', required: false, min: 1, step: 1 }) : field('team_ovr', 'Team OVR', { type: 'number', min: 1, step: 1 })}</div>{bgmi && joining && <div className="space-y-2 mt-5"><Label htmlFor="role">Roster role</Label><Select value={fields.role} onValueChange={value => update('role', value)}><SelectTrigger id="role"><SelectValue/></SelectTrigger><SelectContent>{roles.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}</SelectContent></Select></div>}{bgmi && !joining && <p className="text-xs text-muted-foreground mt-4">Captain · IGL · Roster slot 1</p>}</section>
           {!joining && <section className="registration-section"><h2 className="text-lg font-bold mb-5">Tournament pass</h2>{field('password', 'Entry password', { type: 'password', autoComplete: 'new-password', minLength: 6 })}</section>}
+
+          <section className="registration-section space-y-4">
+            <h2 className="text-lg font-bold mb-3">Entry Fee Payment</h2>
+
+            <div className="p-4 border border-border rounded-lg bg-secondary/30 space-y-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="paidInCash"
+                  checked={paidInCash}
+                  onCheckedChange={(checked) => setPaidInCash(checked === true)}
+                />
+                <div className="space-y-1 leading-none">
+                  <Label htmlFor="paidInCash" className="font-semibold text-sm cursor-pointer">
+                    Paid in cash in school
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Check this if entry fee was handed over directly to the school coordinator or desk.
+                  </p>
+                </div>
+              </div>
+
+              {paidInCash ? (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label htmlFor="cashPlayerNames" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Enter team players real names
+                  </Label>
+                  <Input
+                    id="cashPlayerNames"
+                    placeholder="e.g. Rahul Sharma, Aarav Gupta, Ishan Verma..."
+                    value={cashPlayerNames}
+                    onChange={(e) => setCashPlayerNames(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Provide the full real names of all teammates covered by this cash payment.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label htmlFor="paymentProof" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Upload payment proof screenshot / receipt (Optional)
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      id="paymentProof"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setPaymentFile(e.target.files[0]);
+                        }
+                      }}
+                      className="cursor-pointer file:text-foreground text-xs"
+                    />
+                  </div>
+                  {paymentFile && (
+                    <p className="text-xs text-success flex items-center gap-1 mt-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> File selected: {paymentFile.name}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
           <div className="registration-section"><div className="flex items-start gap-3"><Checkbox id="acceptRules" checked={accepted} onCheckedChange={value => setAccepted(value === true)}/><Label htmlFor="acceptRules" className="text-sm leading-relaxed text-muted-foreground">I meet the school eligibility requirements and agree to the <Link to="/rules" className="text-foreground underline">official rules</Link>.</Label></div>{error && <p role="alert" className="text-destructive text-sm mt-5">{error}</p>}<Button className="mt-6 w-full sm:w-auto" type="submit" disabled={busy || closed || (joining && !verified)}>{closed ? 'Under school approval' : busy ? 'Saving entry…' : joining ? 'Join squad' : bgmi ? 'Create squad' : 'Submit solo entry'}<ArrowRight/></Button></div>
         </form>
       </div>
