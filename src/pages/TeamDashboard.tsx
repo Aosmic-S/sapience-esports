@@ -39,45 +39,88 @@ export default function TeamDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const session = sessionStorage.getItem('teamSession');
-    if (!session) {
-      navigate('/team-login');
-      return;
+    try {
+      const session = sessionStorage.getItem('teamSession');
+      if (!session) {
+        navigate('/team-login', { replace: true });
+        return;
+      }
+      const parsed = JSON.parse(session);
+      if (!parsed || !parsed.teamNumber) {
+        sessionStorage.removeItem('teamSession');
+        navigate('/team-login', { replace: true });
+        return;
+      }
+      setTeamSession(parsed);
+    } catch {
+      sessionStorage.removeItem('teamSession');
+      navigate('/team-login', { replace: true });
     }
-    setTeamSession(JSON.parse(session));
   }, [navigate]);
 
-  // Fetch full registration details for real-time status & DQ check
+  // Fetch full registration details for real-time status & DQ check & attendance
   const { data: teamDetails } = useQuery({
     queryKey: ['teamDetails', teamSession?.teamNumber],
     queryFn: async () => {
-      if (!teamSession) return null;
+      if (!teamSession?.teamNumber) return null;
       const { data, error } = await supabase
         .from('registrations')
         .select('*')
-        .eq('team_number', teamSession.teamNumber)
+        .ilike('team_number', teamSession.teamNumber)
         .maybeSingle();
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
       return data;
     },
-    enabled: !!teamSession
+    enabled: !!teamSession?.teamNumber
+  });
+
+  // Fetch Room ID and Password from system_settings
+  const { data: systemSettings } = useQuery({
+    queryKey: ['systemSettingsRoomDetails'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
+      if (error && error.code !== 'PGRST116') return null;
+      return data;
+    }
   });
 
   // Fetch 5-player Krafton Roster if BGMI
   const { data: roster = [] } = useQuery({
-    queryKey: ['teamRosterMembers', teamSession?.teamNumber],
+    queryKey: ['teamRosterMembers', teamSession?.teamNumber, teamDetails?.id],
     queryFn: async () => {
       if (!teamSession) return [];
-      const { data, error } = await supabase
+      const { data: members, error } = await supabase
         .from('team_members')
         .select('*')
         .eq('team_number', teamSession.teamNumber)
         .order('slot');
+
       if (error) {
         console.error('Error fetching roster:', error);
-        return [];
       }
-      return data || [];
+
+      const list = members || [];
+      const hasSlot1 = list.some((m: any) => m.slot === 1);
+
+      // Include captain at slot 1 if not present in team_members
+      if (!hasSlot1 && teamDetails && teamDetails.game === 'bgmi') {
+        const captainSlot = {
+          id: teamDetails.id,
+          team_number: teamDetails.team_number,
+          full_name: teamDetails.full_name,
+          admission_no: teamDetails.admission_no || '',
+          class_section: teamDetails.class_section,
+          in_game_id: teamDetails.in_game_id || teamDetails.full_name,
+          uid: teamDetails.uid || 'N/A',
+          phone_number: teamDetails.phone_number,
+          role: 'IGL',
+          player_rank: teamDetails.player_rank,
+          slot: 1
+        };
+        return [captainSlot, ...list].sort((a, b) => a.slot - b.slot);
+      }
+
+      return list;
     },
     enabled: !!teamSession && teamSession?.game === 'bgmi'
   });
@@ -132,13 +175,17 @@ export default function TeamDashboard() {
     navigate('/team-login');
   };
 
+  const [codeCopied, setCodeCopied] = useState(false);
+
   const copyTeamCode = () => {
     if (teamSession?.teamNumber) {
       navigator.clipboard.writeText(teamSession.teamNumber);
+      setCodeCopied(true);
       toast({
-        title: "Code Copied!",
+        title: "Team Pass Code Copied!",
         description: `Team code ${teamSession.teamNumber} copied to clipboard.`
       });
+      setTimeout(() => setCodeCopied(false), 2000);
     }
   };
 
@@ -153,6 +200,15 @@ export default function TeamDashboard() {
   const isBGMI = teamSession.game === 'bgmi';
   const currentStatus = teamDetails?.status || teamSession.status || 'active';
   const dqReason = teamDetails?.dq_reason || teamSession.dqReason;
+
+  // Active game-specific room credentials
+  const activeRoomId = isBGMI
+    ? (systemSettings?.bgmi_room_id || systemSettings?.room_id)
+    : (systemSettings?.fcmobile_room_id || systemSettings?.room_id);
+
+  const activeRoomPass = isBGMI
+    ? (systemSettings?.bgmi_room_password || systemSettings?.room_password)
+    : (systemSettings?.fcmobile_room_password || systemSettings?.room_password);
 
   return (
     <div className="min-h-[calc(100vh-76px)] bg-background text-foreground py-8 px-4 sm:px-6">
@@ -173,20 +229,23 @@ export default function TeamDashboard() {
                 {currentStatus.toUpperCase()}
               </Badge>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight">
-              {teamDetails?.team_name || teamSession.teamName}
-            </h1>
-            <p className="text-xs text-muted-foreground font-mono flex items-center gap-2">
-              <span>{isBGMI ? 'Squad Code:' : 'Player ID:'} <strong className="text-foreground">{teamSession.teamNumber}</strong></span>
-              {isBGMI && (
-                <button 
-                  onClick={copyTeamCode} 
-                  className="text-primary hover:underline inline-flex items-center gap-1 font-sans text-xs"
+            <div className="flex items-center gap-3 pt-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold uppercase tracking-tight">
+                {teamDetails?.team_name || teamSession.teamName}
+              </h1>
+              <div className="px-3 py-1 bg-secondary/80 border border-primary/40 rounded-md flex items-center gap-2">
+                <span className="text-xs font-mono font-bold text-primary tracking-widest uppercase">
+                  PASS: {teamSession.teamNumber}
+                </span>
+                <button
+                  onClick={copyTeamCode}
+                  className="p-1 hover:bg-primary/20 rounded text-primary transition-colors"
+                  title="Copy Pass Code"
                 >
-                  <Share2 className="w-3 h-3" /> Copy Code
+                  <Share2 className="w-3.5 h-3.5" />
                 </button>
-              )}
-            </p>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -215,50 +274,127 @@ export default function TeamDashboard() {
           </div>
         )}
 
-        {/* Upcoming Match & Room Credentials */}
-        <Card className="border-border bg-card shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-emerald-400" />
-          <CardHeader className="p-5 pb-3">
-            <CardTitle className="text-base uppercase font-bold flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Key className="w-4 h-4 text-primary" />
-                {isBGMI ? 'Custom Room Credentials' : 'Head-to-Head Match Pass'}
-              </span>
-              <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-primary" /> 10 Mins Prior Protocol
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-5 pt-0">
-            <div className="grid sm:grid-cols-3 gap-4 p-4 bg-secondary/50 border border-border rounded-lg text-xs">
-              <div>
-                <p className="text-muted-foreground uppercase text-[10px] font-bold">Scheduled Match</p>
-                <p className="font-bold text-foreground text-sm mt-1">Round 1 (Group Stage)</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Under school approval</p>
+        {/* Venue QR Attendance Pass & Room Credentials */}
+        <div className="grid md:grid-cols-12 gap-6 items-start">
+          {/* QR Code Pass Card */}
+          <Card className="md:col-span-5 border-border bg-card shadow-lg relative overflow-hidden">
+            <CardHeader className="p-5 pb-2">
+              <CardTitle className="text-base uppercase font-bold flex items-center gap-2">
+                <Shield className="w-4 h-4 text-primary" /> Team QR Attendance Pass
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Scan at the tournament desk to verify physical attendance & unlock Room ID/Password.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 flex flex-col items-center text-center space-y-3">
+              <div className="p-3 bg-white rounded-lg shadow-inner border border-border/80">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${teamSession.teamNumber}`}
+                  alt={`QR Code for Team ${teamSession.teamNumber}`}
+                  className="w-44 h-44 object-contain"
+                />
               </div>
+              <div>
+                <p className="font-mono font-bold text-sm tracking-widest text-foreground uppercase">{teamSession.teamNumber}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Show this QR Code to referee upon venue entry</p>
+              </div>
+              {teamDetails?.is_present ? (
+                <Badge className="bg-success/20 text-success border-success/40 gap-1 uppercase font-mono text-[11px]">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Attendance Marked: Present
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1 uppercase font-mono text-[11px]">
+                  <Clock className="w-3.5 h-3.5" /> Attendance Pending
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
 
-              <div>
-                <p className="text-muted-foreground uppercase text-[10px] font-bold">
-                  {isBGMI ? 'Custom Room ID' : 'Opponent'}
-                </p>
-                <p className="font-mono font-bold text-primary text-sm mt-1">
-                  ROOM-LOCKED
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Unlocks 10m before kickoff</p>
-              </div>
+          {/* Attendance-Gated Room Credentials */}
+          <Card className="md:col-span-7 border-border bg-card shadow-lg relative overflow-hidden h-full">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-emerald-400" />
+            <CardHeader className="p-5 pb-3">
+              <CardTitle className="text-base uppercase font-bold flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Key className="w-4 h-4 text-primary" />
+                  {isBGMI ? 'Custom Room Credentials' : 'Head-to-Head Match Pass'}
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-primary" /> 10 Mins Prior Protocol
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 space-y-4">
+              {teamDetails?.is_present ? (
+                <div className="p-4 bg-success/10 border border-success/30 rounded-lg space-y-3">
+                  <p className="text-xs font-bold text-success uppercase flex items-center justify-between">
+                    <span className="flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Attendance Verified — Room Pass Unlocked</span>
+                    <Badge className="bg-success text-black font-mono text-[9px] uppercase">MATCH READY</Badge>
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-4 pt-1 text-xs">
+                    <div className="p-3 bg-background border border-border rounded flex justify-between items-center">
+                      <div>
+                        <p className="text-muted-foreground uppercase text-[10px] font-bold">{isBGMI ? 'BGMI Custom Room ID' : 'FC Mobile Match Code'}</p>
+                        <p className="font-mono font-bold text-primary text-base mt-0.5 select-all">
+                          {activeRoomId || 'PENDING_HOST'}
+                        </p>
+                      </div>
+                      {activeRoomId && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeRoomId);
+                            toast({ title: `${isBGMI ? 'BGMI Room ID' : 'FC Mobile Code'} Copied!`, description: activeRoomId });
+                          }}
+                          className="px-2 py-1 bg-secondary text-primary hover:bg-primary/20 rounded font-mono text-[10px] uppercase font-bold"
+                        >
+                          Copy
+                        </button>
+                      )}
+                    </div>
+                    <div className="p-3 bg-background border border-border rounded flex justify-between items-center">
+                      <div>
+                        <p className="text-muted-foreground uppercase text-[10px] font-bold">{isBGMI ? 'Room Password' : 'Lobby Password'}</p>
+                        <p className="font-mono font-bold text-foreground text-base mt-0.5 select-all">
+                          {activeRoomPass || 'PENDING_HOST'}
+                        </p>
+                      </div>
+                      {activeRoomPass && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeRoomPass);
+                            toast({ title: "Password Copied!", description: activeRoomPass });
+                          }}
+                          className="px-2 py-1 bg-secondary text-foreground hover:bg-muted rounded font-mono text-[10px] uppercase font-bold"
+                        >
+                          Copy
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-5 bg-secondary/60 border border-border rounded-lg text-center space-y-2">
+                  <AlertTriangle className="w-8 h-8 mx-auto text-warning/80" />
+                  <p className="font-bold text-sm text-foreground uppercase">Room Credentials Locked</p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    Room ID and Password are only visible to teams marked present at the venue. Please present your QR Code on the left to the desk referee.
+                  </p>
+                </div>
+              )}
 
-              <div>
-                <p className="text-muted-foreground uppercase text-[10px] font-bold">
-                  {isBGMI ? 'Room Password' : 'Referee Table'}
-                </p>
-                <p className="font-mono font-bold text-foreground text-sm mt-1">
-                  ••••••••
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Issued via school esports desk</p>
+              <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+                <div className="p-3 bg-secondary/40 border border-border rounded">
+                  <p className="text-muted-foreground uppercase text-[10px] font-bold">Scheduled Match</p>
+                  <p className="font-bold text-foreground text-xs mt-0.5">Round 1 (Group Stage)</p>
+                </div>
+                <div className="p-3 bg-secondary/40 border border-border rounded">
+                  <p className="text-muted-foreground uppercase text-[10px] font-bold">Referee Desk</p>
+                  <p className="font-bold text-foreground text-xs mt-0.5">STEM Club Main Arena</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* BGMI Krafton Roster Breakdown */}
         {isBGMI && (
