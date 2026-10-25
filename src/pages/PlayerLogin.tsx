@@ -6,9 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable';
 import { usePlayer } from '@/hooks/usePlayer';
-import '@lovable.dev/cloud-auth-js/styles.css';
 
 export default function PlayerLogin() {
   const { user } = usePlayer(); const navigate = useNavigate();
@@ -26,17 +24,50 @@ export default function PlayerLogin() {
       } else if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin + '/player-login', data: { display_name: name.trim() } } });
         if (error) throw error;
-        if (!data.session) setMessage('Check your email to confirm your player account before signing in.');
+        if (!data.session) {
+          setMessage('Account created! Please check your email inbox to confirm your account, then sign in.');
+        } else {
+          setMessage('Account created and signed in successfully!');
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error) throw error;
+        if (error) {
+          if (error.message?.includes('Email not confirmed')) {
+            throw new Error('Please confirm your email address via the link sent to your inbox before signing in.');
+          }
+          if (error.message?.includes('Invalid login credentials')) {
+            throw new Error('Invalid email or password. If you registered via team pass, use the Team / Competitor Login portal.');
+          }
+          throw error;
+        }
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to sign in. Please try again.'); }
     finally { setBusy(false); }
   };
-  const social = async (provider: 'google' | 'lovable') => {
-    setError(''); const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin + '/player-login' });
-    if (result.error) setError(result.error.message);
+  const googleLogin = async () => {
+    setError('');
+    try {
+      const redirectUri = `${window.location.origin}/player-login`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUri }
+      });
+      if (error) {
+        const errStr = typeof error === 'string' ? error : (error.message || '') + ' ' + JSON.stringify(error);
+        if (errStr.includes('validation_failed') || errStr.includes('missing OAuth secret') || errStr.includes('Unsupported provider')) {
+          setError('Google OAuth is not configured on this Supabase project yet (Missing Google Client Secret in Supabase Auth -> Providers -> Google). Please sign in with email/password or use Team / Solo Pass login above.');
+        } else {
+          setError(error.message || 'Google sign in failed.');
+        }
+      }
+    } catch (err) {
+      const errStr = err instanceof Error ? err.message : JSON.stringify(err);
+      if (errStr.includes('validation_failed') || errStr.includes('missing OAuth secret') || errStr.includes('Unsupported provider')) {
+        setError('Google OAuth is not configured on this Supabase project yet (Missing Google Client Secret in Supabase Auth -> Providers -> Google). Please sign in with email/password or use Team / Solo Pass login above.');
+      } else {
+        setError(errStr || 'Google sign in failed. Please try again.');
+      }
+    }
   };
   return <main className="container max-w-5xl px-5 py-12 md:py-20 min-h-[70vh]">
     <div className="grid md:grid-cols-[1fr_1fr] gap-12 md:gap-24 items-start">
@@ -51,7 +82,7 @@ export default function PlayerLogin() {
           <Button disabled={busy} className="w-full" type="submit">{busy?'Please wait…':mode==='signup'?'Create player account':mode==='forgot'?'Send reset link':'Sign in'}<ArrowRight/></Button>
         </form>
         <Button variant="link" className="px-0 mt-2 text-muted-foreground" onClick={()=>{setMode(mode==='forgot'?'login':'forgot');setMessage('');setError('');}}>{mode==='forgot'?'Back to sign in':'Forgot password?'}</Button>
-        {mode !== 'forgot' && <div className="mt-6 pt-6 border-t border-border space-y-3"><Button variant="outline" className="w-full" onClick={()=>void social('google')}>Continue with Google</Button><Button className="lovable-auth-button w-full" onClick={()=>void social('lovable')}>Continue with Lovable</Button></div>}
+        {mode !== 'forgot' && <div className="mt-6 pt-6 border-t border-border space-y-3"><Button variant="outline" className="w-full" onClick={()=>void googleLogin()}>Continue with Google</Button></div>}
       </div>
     </div>
   </main>;
