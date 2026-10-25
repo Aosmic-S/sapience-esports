@@ -18,6 +18,8 @@ import RulesTab from '@/components/admin/RulesTab';
 import LeaderboardTab from '@/components/admin/LeaderboardTab';
 import BracketsTab from '@/components/admin/BracketsTab';
 import PaymentsTab from '@/components/admin/PaymentsTab';
+import TournamentStatusTab from '@/components/admin/TournamentStatusTab';
+import { ToggleRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -143,6 +145,7 @@ const Admin = () => {
   const activeGamesCount = games.filter((g: any) => g.is_active).length;
 
   const sections: NavSection[] = [
+    { id: 'status', label: 'Tournament Status', category: 'OPS', icon: ToggleRight },
     { id: 'registrations', label: 'Registrations', category: 'OPS', icon: Users, count: totalRegistrations },
     { id: 'payments', label: 'Payments Review', category: 'OPS', icon: CreditCard },
     { id: 'brackets', label: 'Brackets', category: 'OPS', icon: GitBranch },
@@ -168,6 +171,8 @@ const Admin = () => {
             onRegistrationsChange={() => queryClient.invalidateQueries({ queryKey: ['registrations'] })} 
           />
         );
+      case 'status':
+        return <TournamentStatusTab />;
       case 'payments':
         return <PaymentsTab />;
       case 'leaderboard': 
