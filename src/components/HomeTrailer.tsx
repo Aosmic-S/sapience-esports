@@ -40,12 +40,13 @@ export default function HomeTrailer() {
   const { data: settings } = useQuery({
     queryKey: ['systemSettingsTrailer'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('system_settings').select('trailer_video_url').eq('id', 1).maybeSingle();
+      const { data, error } = await supabase.from('system_settings').select('trailer_video_url, registration_open').eq('id', 1).maybeSingle();
       if (error && error.code !== 'PGRST116') throw error;
       return data;
     }
   });
 
+  const isOpen = settings?.registration_open !== false;
   const defaultSupabaseVideoUrl = "https://ctwmltatizxoooqkbvvc.supabase.co/storage/v1/object/sign/vault/470c4622-9723-43bf-b511-9d881cda9e37/e79ee9a3-4061-42be-a486-a5b823adcb29-VID-20261020-WA0001.mp4?token=eyJraWQiOiJiMWZlM2RjOC00YjQ5LTRmY2EtYmQ0Yi0zNTRhNTY4MGZlMWYiLCJhbGciOiJIUzUxMiJ9.eyJ1cmwiOiJ2YXVsdC80NzBjNDYyMi05NzIzLTQzYmYtYjUxMS05ZDg4MWNkYTllMzcvZTc5ZWU5YTMtNDA2MS00MmJlLWE0ODYtYTViODIzYWRjYjI5LVZJRC0yMDI2MTAyMC1XQTAwMDEubXA0Iiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc5MjQ5OTIxNSwiZXhwIjoxNzkyNTAyODE1fQ.s3hllpIAexrLRvcOigYCx3w9a9xhYxTfixKM8FiT8lp32B18j4xI0Y9D853hJPrFL7wyL3oSWOCzVnjasPoWng";
   const localVideoUrl = typeof window !== 'undefined' ? localStorage.getItem('sapience_trailer_video_url') : null;
   const rawUrl = settings?.trailer_video_url?.trim() || localVideoUrl?.trim() || defaultSupabaseVideoUrl;
@@ -59,7 +60,9 @@ export default function HomeTrailer() {
       </div>
       <div className="md:text-right">
         <p className="font-display font-bold text-lg">Sapience Cup 2026</p>
-        <p className="text-warning text-xs mt-2">Under school approval</p>
+        <p className={`text-xs mt-2 font-mono uppercase ${isOpen ? 'text-success font-bold' : 'text-warning'}`}>
+          {isOpen ? 'Registrations Open' : 'Under school approval'}
+        </p>
       </div>
     </div>
     <div className="relative bg-background">
