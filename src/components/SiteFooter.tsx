@@ -15,7 +15,7 @@ export const SiteFooter = () => {
   });
 
   if (pathname.startsWith('/admin')) return null;
-  const isOpen = settings?.registration_open === true;
+  const isOpen = settings?.registration_open !== false;
 
   return <footer className="border-t border-border bg-card/40">
     <div className="container px-5 py-10 flex flex-col md:flex-row justify-between gap-8">
