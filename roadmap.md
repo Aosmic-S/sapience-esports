@@ -1,4 +1,7 @@
 # Current work
+- [ ] Update the public tournament year and schedule to April 2027; align the homepage trailer with that date and the confirmed games.
+- [ ] Add Free Fire India alongside BGMI and FC Mobile; set the Free Fire team cap to 24, BGMI cap to 32, and full-team entry fees to ₹1,250 and ₹1,000 respectively.
+- [ ] Verify the project's Lovable Cloud connection; do not inspect or manually edit repository credentials.
 - [ ] Add private payment-proof submission, staff review and player-visible payment status; verify access and workflow.
 - [ ] Loop the homepage trailer automatically without visible controls.
 - [x] Display FC Mobile and BGMI registration charges and verify fee rules.
