@@ -63,7 +63,7 @@ export default function TeamDashboard() {
     queryKey: ['teamDetails', teamSession?.teamNumber],
     queryFn: async () => {
       if (!teamSession?.teamNumber) return null;
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('registrations')
         .select('*')
         .ilike('team_number', teamSession.teamNumber)
@@ -78,7 +78,7 @@ export default function TeamDashboard() {
   const { data: systemSettings } = useQuery({
     queryKey: ['systemSettingsRoomDetails'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
+      const { data, error } = await (supabase as any).from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
       if (error && error.code !== 'PGRST116') return null;
       return data;
     }

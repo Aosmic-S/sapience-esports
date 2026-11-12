@@ -106,7 +106,7 @@ export default function Register() {
 
       // Save payment details / proof path to database record
       if (uploadedProofPath || paidInCash) {
-        await supabase.from('registrations').update({
+        await (supabase as any).from('registrations').update({
           payment_proof_url: uploadedProofPath || (paidInCash ? 'paid_in_cash' : null),
           payment_status: paidInCash ? 'verified' : 'pending'
         }).eq('team_number', data);

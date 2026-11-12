@@ -136,7 +136,7 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
 
   const openRoomModal = async () => {
     try {
-      const { data } = await supabase.from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
+      const { data } = await (supabase as any).from('system_settings').select('room_id, room_password, bgmi_room_id, bgmi_room_password, fcmobile_room_id, fcmobile_room_password').eq('id', 1).maybeSingle();
       if (data) {
         setBgmiRoomId(data.bgmi_room_id || data.room_id || '');
         setBgmiRoomPass(data.bgmi_room_password || data.room_password || '');
@@ -156,7 +156,7 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
       const activeId = targetGame === 'bgmi' ? bgmiRoomId.trim() : fcRoomId.trim();
       const activePass = targetGame === 'bgmi' ? bgmiRoomPass.trim() : fcRoomPass.trim();
 
-      let { error } = await supabase.from('system_settings').update({
+      let { error } = await (supabase as any).from('system_settings').update({
         bgmi_room_id: bgmiRoomId.trim(),
         bgmi_room_password: bgmiRoomPass.trim(),
         fcmobile_room_id: fcRoomId.trim(),
@@ -168,7 +168,7 @@ const RegistrationsTab = ({ registrations, onRegistrationsChange }: Registration
 
       if (error) {
         // Fallback to base room_id if new columns not present yet
-        const fallback = await supabase.from('system_settings').update({
+        const fallback = await (supabase as any).from('system_settings').update({
           room_id: activeId,
           room_password: activePass,
           updated_at: new Date().toISOString()

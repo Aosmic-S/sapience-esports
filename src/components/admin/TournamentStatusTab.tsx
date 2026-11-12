@@ -37,7 +37,7 @@ export default function TournamentStatusTab() {
   const { data: settings, isLoading, refetch } = useQuery({
     queryKey: ['tournamentStatusSettings'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('system_settings')
         .select('*')
         .eq('id', 1)
@@ -63,7 +63,7 @@ export default function TournamentStatusTab() {
     setSavingStatus(true);
     const newStatus = !settings?.registration_open;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('system_settings')
         .update({ registration_open: newStatus })
         .eq('id', 1);
@@ -107,7 +107,7 @@ export default function TournamentStatusTab() {
 
       if (error) {
         // Fallback to base room_id/room_password if custom columns not added in Supabase yet
-        const fallbackRes = await supabase
+        const fallbackRes = await (supabase as any)
           .from('system_settings')
           .update({
             room_id: bgmiRoomId.trim() || fcRoomId.trim(),
