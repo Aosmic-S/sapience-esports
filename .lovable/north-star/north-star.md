@@ -2,7 +2,7 @@
 
 # North star
 
-Players compete in the Sapience Cup esports tournament.
+Students showcase their esports skills at higher levels.
 
 ## Metric
 
